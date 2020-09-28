@@ -1,0 +1,8 @@
+[package]
+name = "scheme"
+version = "0.1.0"
+authors = ["MetroWind <chris.corsair@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+shared = { path = "../shared" }
