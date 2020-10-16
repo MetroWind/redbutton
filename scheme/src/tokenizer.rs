@@ -2,39 +2,63 @@ use shared::error;
 use shared::error::Error;
 
 #[derive(Debug, PartialEq)]
-pub struct TokenData
+pub struct TokenData<T: Default>
 {
-    data: String,
+    src: String,
+    data: T,
 }
 
-impl TokenData
+impl<T: Default> TokenData<T>
 {
     pub fn new(src: &str) -> Self
     {
-        Self{ data: src.to_owned() }
+        Self{ src: src.to_owned(), data: T::default() }
     }
 
     pub fn fromString(src: String) -> Self
     {
-        Self{ data: src }
+        Self{ src: src, data: T::default() }
     }
 
 }
 
-#[derive(Debug, PartialEq)]
-pub enum RawToken
+type RawTokenData = TokenData<()>;
+
+#[derive(Debug, PartialEq, Clone)]
+enum RawTokenKind
 {
     ParenLeft,
     ParenRight,
     Dot,
-    String(TokenData),
+    String,
     Quote,
     // Quasiquote
     Quasi,
     Comma,
     // ,@
     SeqComma,
-    Stuff(TokenData),
+    // Identifiers and non-string literals.
+    Stuff,
+}
+
+#[derive(Debug, PartialEq, Clone)]
+struct RawToken
+{
+    src: String,
+    kind: RawTokenKind,
+}
+
+impl RawToken
+{
+    pub fn new(src: &str, kind: RawTokenKind) -> Self
+    {
+        Self{ src: src.to_owned(), kind: kind }
+    }
+
+    pub fn withString(src: String, kind: RawTokenKind) -> Self
+    {
+        Self{ src: src, kind: kind }
+    }
 }
 
 enum State
@@ -46,7 +70,138 @@ enum State
     DotMaybe,
 }
 
-pub fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
+#[derive(Debug, PartialEq, Clone)]
+pub enum TokenValue
+{
+    ParenLeft,
+    ParenRight,
+    Dot,
+    String(String),
+    Quote,
+    Quasi,
+    Comma,
+    SeqComma,
+    Float(f64),
+    Integer(i64),
+    Ident(String),
+    Char(char),
+    Bool(bool),
+}
+
+#[derive(Debug, PartialEq, Clone)]
+pub struct Token
+{
+    src: String,
+    value: TokenValue,
+}
+
+impl From<RawToken> for Token
+{
+    fn convertSharp(s: &str) -> Result<TokenValue, Error>
+    {
+        match s[1]
+        {
+            't' => if s.len() == 2
+            {
+                Ok(TokenValue::Bool(true))
+            }
+            else
+            {
+                Err(error!(ParseError,
+                           format!("Invalid sharp literal: {}", s)))
+            },
+
+            'f' => if s.len() == 2
+            {
+                Ok(TokenValue::Bool(false))
+            }
+            else
+            {
+                Err(error!(ParseError,
+                           format!("Invalid sharp literal: {}", s)))
+            },
+
+            '\\' => if s.len() == 3
+            {
+                Ok(TokenValue::Char(s[2]))
+            }
+            else
+            {
+                match s[2..]
+                {
+                    "space" => Ok(TokenValue::Char(' ')),
+                    "newline" => Ok(TokenValue::Char('\n')),
+                    _ => Err(error!(
+                        ParseError, format!("Invalid char: {}", s))),
+                }
+            },
+
+            // Binary
+            'b' => Ok(TokenValue::Integer(i64::from_str_radix(s[2..], 2)?)),
+            // Octal
+            'o' => Ok(TokenValue::Integer(i64::from_str_radix(s[2..], 8)?)),
+            // Decimal
+            'd' => Ok(TokenValue::Integer(i64::from_str_radix(s[2..], 10)?)),
+            // Hex
+            'x' => Ok(TokenValue::Integer(i64::from_str_radix(s[2..], 16)?)),
+
+            _ => Err(error!(ParseError, format!("Invalid sharp literal: {}", s))),
+        }
+    }
+
+    fn convertNumber(s: &str) -> Option<TokenValue>
+    {
+        if let Ok(n) = s.parse::<i64>()
+        {
+            Some(TokenValue::Integer(n))
+        }
+        else if let Ok(x) = s.parse::<f64>()
+        {
+            Some(TokenValue::Float(x))
+        }
+        else
+        {
+            None
+        }
+    }
+
+    fn convertStuff(s: &str) -> Result<TokenValue, Error>
+    {
+        if s[0] == '#'
+        {
+            Self::convertSharp(s)
+        }
+
+        if s[0] == '+' || s[0] == '-'
+        {
+            if s[1] == '#'
+            {
+                if let Ok(v) = Self::convertSharp(s[1..])
+                {
+                    if s[0] == '-'
+                    {
+                        v.value
+    }
+
+    pub fn from(t: RawToken) -> Self
+    {
+        let v: TokenValue = match t.kind
+        {
+            RawTokenKind::ParenLeft => TokenValue::ParenLeft,
+            RawTokenKind::ParenRight => TokenValue::ParenRight,
+            RawTokenKind::Dot => TokenValue::Dot,
+            RawTokenKind::Quote => TokenValue::Quote,
+            RawTokenKind::Quasi => TokenValue::Quasi,
+            RawTokenKind::Comma => TokenValue::Comma,
+            RawTokenKind::SeqComma => TokenValue::SeqComma,
+            RawTokenKind::String => TokenValue::String(t.src),
+            RawTokenKind::Stuff => Self::convertStuff(&t.src),
+        };
+
+    }
+}
+
+fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
 {
     let mut result: Vec<RawToken> = Vec::new();
     let mut token_buffer: Vec<char> = Vec::new();
@@ -62,11 +217,11 @@ pub fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
 
                 if c == '('
                 {
-                    result.push(RawToken::ParenLeft);
+                    result.push(RawToken::new("(", RawTokenKind::ParenLeft));
                 }
                 else if c == ')'
                 {
-                    result.push(RawToken::ParenRight);
+                    result.push(RawToken::new(")", RawTokenKind::ParenRight));
                 }
                 else if c.is_whitespace()
                 {
@@ -81,11 +236,11 @@ pub fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
                 }
                 else if c == '\''
                 {
-                    result.push(RawToken::Quote);
+                    result.push(RawToken::new("'", RawTokenKind::Quote));
                 }
                 else if c == '`'
                 {
-                    result.push(RawToken::Quasi);
+                    result.push(RawToken::new("`", RawTokenKind::Quasi));
                 }
                 else if c == ','
                 {
@@ -116,8 +271,8 @@ pub fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
                 {
                     if c == '"'
                     {
-                        result.push(RawToken::String(TokenData::fromString(
-                            token_buffer.iter().collect())));
+                        result.push(RawToken::withString(
+                            token_buffer.iter().collect(), RawTokenKind::String));
                         state = State::Generic;
                     }
                     else
@@ -131,22 +286,22 @@ pub fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
             {
                 if c.is_whitespace()
                 {
-                    result.push(RawToken::Stuff(TokenData::fromString(
-                        token_buffer.iter().collect())));
+                    result.push(RawToken::withString(
+                        token_buffer.iter().collect(), RawTokenKind::Stuff));
                     state = State::Generic;
                 }
                 else if c == ')'
                 {
-                    result.push(RawToken::Stuff(TokenData::fromString(
-                        token_buffer.iter().collect())));
-                    result.push(RawToken::ParenRight);
+                    result.push(RawToken::withString(
+                        token_buffer.iter().collect(), RawTokenKind::Stuff));
+                    result.push(RawToken::new(")", RawTokenKind::ParenRight));
                     state = State::Generic;
                 }
                 else if c == '('
                 {
-                    result.push(RawToken::Stuff(TokenData::fromString(
-                        token_buffer.iter().collect())));
-                    result.push(RawToken::ParenLeft);
+                    result.push(RawToken::withString(
+                        token_buffer.iter().collect(), RawTokenKind::Stuff));
+                    result.push(RawToken::new("(", RawTokenKind::ParenLeft));
                     state = State::Generic;
                 }
                 else
@@ -159,13 +314,14 @@ pub fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
             {
                 if c == '@'
                 {
-                    result.push(RawToken::SeqComma);
+                    result.push(RawToken::new(",@", RawTokenKind::SeqComma));
                     state = State::Generic;
                 }
                 else
                 {
-                    result.push(RawToken::Comma);
+                    result.push(RawToken::new(",", RawTokenKind::Comma));
                     state = State::Stuff;
+                    token_buffer.push(c);
                 }
             },
 
@@ -173,7 +329,7 @@ pub fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
             {
                 if c.is_whitespace()
                 {
-                    result.push(RawToken::Dot);
+                    result.push(RawToken::new(".", RawTokenKind::Dot));
                     state = State::Generic;
                 }
                 else
@@ -195,17 +351,91 @@ mod tests
 {
     use super::*;
 
+    macro_rules! RT {
+        ( $s:literal, $x:ident ) => {
+            RawToken::new($s, RawTokenKind::$x)
+        };
+    }
+
     #[test]
     fn tok0_simple() -> Result<(), Error>
     {
-        let src = "(+ 1 2)";
+        let src = r#"(+ 1 #\2)"#;
         let tokens = tokenize0(src)?;
-        assert_eq!(tokens.len(), 5);
-        assert_eq!(tokens[0], RawToken::ParenLeft);
-        assert_eq!(tokens[1], RawToken::Stuff(TokenData::new("+")));
-        assert_eq!(tokens[2], RawToken::Stuff(TokenData::new("1")));
-        assert_eq!(tokens[3], RawToken::Stuff(TokenData::new("2")));
-        assert_eq!(tokens[4], RawToken::ParenRight);
+        assert_eq!(
+            tokens,
+            vec![RT!("(", ParenLeft),
+                 RT!("+", Stuff),
+                 RT!("1", Stuff),
+                 RT!("#\\2", Stuff),
+                 RT!(")", ParenRight),
+            ]);
+        Ok(())
+    }
+
+    #[test]
+    fn tok0_string() -> Result<(), Error>
+    {
+        let src = r#"(+ "abc" "d\nf")"#;
+        let tokens = tokenize0(src)?;
+        assert_eq!(tokens,
+                   vec![RT!("(", ParenLeft),
+                        RT!("+", Stuff),
+                        RT!("abc", String),
+                        RT!("d\\\nf", String),
+                        RT!(")", ParenRight),
+                   ]);
+        Ok(())
+    }
+
+    #[test]
+    fn tok0_quote() -> Result<(), Error>
+    {
+        let src = r#"'("abc")"#;
+        let tokens = tokenize0(src)?;
+        assert_eq!(tokens,
+                   vec![
+                       RT!("'", Quote),
+                       RT!("(", ParenLeft),
+                       RT!("abc", String),
+                       RT!(")", ParenRight),
+                   ]);
+        Ok(())
+    }
+
+    #[test]
+    fn tok0_cons() -> Result<(), Error>
+    {
+        let src = r#"(1 . 2)"#;
+        let tokens = tokenize0(src)?;
+        assert_eq!(tokens,
+                   vec![
+                       RT!("(", ParenLeft),
+                       RT!("1", Stuff),
+                       RT!(".", Dot),
+                       RT!("2", Stuff),
+                       RT!(")", ParenRight),
+                   ]);
+        Ok(())
+    }
+
+    #[test]
+    fn tok0_quasi() -> Result<(), Error>
+    {
+        let src = r#"`(,v ,@(w))"#;
+        let tokens = tokenize0(src)?;
+        assert_eq!(tokens,
+                   vec![
+                       RT!("`", Quasi),
+                       RT!("(", ParenLeft),
+                       RT!(",", Comma),
+                       RT!("v", Stuff),
+                       RT!(",@", SeqComma),
+                       RT!("(", ParenLeft),
+                       RT!("w", Stuff),
+                       RT!(")", ParenRight),
+                       RT!(")", ParenRight),
+                   ]);
         Ok(())
     }
 }
