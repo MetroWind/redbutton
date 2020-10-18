@@ -12,7 +12,7 @@ macro_rules! error
     };
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Error
 {
     ParseError(String),

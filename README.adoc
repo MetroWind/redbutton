@@ -1,0 +1,5 @@
+= Confort
+MetroWind
+
+A personal configuration management framework so over-engineered it’ll
+probably never finish.

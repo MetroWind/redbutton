@@ -4,5 +4,13 @@ version = "0.1.0"
 authors = ["MetroWind <chris.corsair@gmail.com>"]
 edition = "2018"
 
+[lib]
+name = "scheme"
+path = "src/lib.rs"
+
+[[bin]]
+name = "test"
+path = "src/main.rs"
+
 [dependencies]
 shared = { path = "../shared" }

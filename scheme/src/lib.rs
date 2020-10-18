@@ -1,6 +1,10 @@
 #![allow(non_snake_case)]
 
-mod tokenizer;
+pub mod tokenizer;
+pub mod parser;
+pub mod environment;
+pub mod eval;
+pub mod builtin;
 
 #[cfg(test)]
 mod tests

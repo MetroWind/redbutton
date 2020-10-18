@@ -1,0 +1,38 @@
+* Data types
+
+  - [X] 64 bit integer
+  - [X] 64 bit float
+  - [X] String
+  - [X] Char
+  - [X] Bool
+
+* Special forms
+
+  - [ ] if
+  - [ ] cond
+  - [ ] let*
+  - [ ] lambda
+  - [ ] define
+  - [ ] set!
+  - [ ] define-syntax-rule (maybe)
+
+* Builtins
+
+  - [X] +-*/
+  - [ ] car, cdr
+  - [X] Quotation
+  - [ ] Quasiquote (maybe)
+  - [ ] and, or, not
+  - [ ] Comparisons
+  - [ ] null?
+  - [ ] cons
+  - [ ] list
+  - [ ] append
+  - [ ] display
+  - [ ] apply
+  - [ ] eval (maybe)
+
+* Will not implement
+
+  - Vector (=#(...)=)
+  - Exactness (=#e...= and =#i...= )

@@ -1,6 +1,1 @@
 = Scheme Interpreter
-
-== Unsupported features
-
-* Vector (`#(...)`)
-* Exactness (`#e...` and `#i...`)
