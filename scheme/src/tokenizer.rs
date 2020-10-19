@@ -92,6 +92,21 @@ pub enum TokenValue
     Bool(bool),
 }
 
+impl TokenValue
+{
+    pub fn getIdentifier(&self) -> Option<&str>
+    {
+        if let Self::Ident(name) = self
+        {
+            Some(&name)
+        }
+        else
+        {
+            None
+        }
+    }
+}
+
 // impl fmt::Display for TokenValue
 // {
 //     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result

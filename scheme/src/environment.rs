@@ -3,12 +3,73 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
+use crate::parser::SyntaxTreeNode;
 use shared::error;
 use shared::error::Error;
 
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone)]
 pub struct Procedure
 {
+    pub name: Option<String>,
+    env: Environment,
+    arguments: Vec<String>,
+    body: Vec<SyntaxTreeNode>,
+}
+
+impl Procedure
+{
+    pub fn fromArgsBody(env: Environment, args: Vec<String>,
+                        body: Vec<SyntaxTreeNode>) -> Self
+    {
+        Self{ name: None, env: env, arguments: args, body: body }
+    }
+
+    pub fn arguments(&self) -> &Vec<String>
+    {
+        &self.arguments
+    }
+
+    pub fn body(&self) -> &Vec<SyntaxTreeNode>
+    {
+        &self.body
+    }
+
+    pub fn empty(&self) -> bool
+    {
+        self.body.is_empty()
+    }
+}
+
+impl fmt::Debug for Procedure
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+    {
+        match &self.name
+        {
+            Some(name) => write!(f, "{}:procedure", name),
+            None => write!(f, "procedure"),
+        }
+    }
+}
+
+impl fmt::Display for Procedure
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+    {
+        match &self.name
+        {
+            Some(name) => write!(f, "{}:procedure", name),
+            None => write!(f, "procedure"),
+        }
+    }
+}
+
+impl PartialEq for Procedure
+{
+    fn eq(&self, other: &Self) -> bool
+    {
+        &self.body == &other.body
+    }
 }
 
 type Func = fn(&[Value], Environment) -> Result<Value, Error>;
@@ -65,6 +126,11 @@ pub enum Value
 
 impl Value
 {
+    pub const fn null() -> Self
+    {
+        Self::List(vec![])
+    }
+
     pub fn isInt(&self) -> bool
     {
         if let Self::Integer(_) = self
@@ -161,7 +227,7 @@ impl Environment
 
     pub fn derive(&self) -> Self
     {
-        let mut result = Self::new();
+        let result = Self::new();
         result.inner.borrow_mut().parent = Some(self.clone());
         result
     }

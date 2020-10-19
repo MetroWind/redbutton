@@ -8,11 +8,12 @@
 
 * Special forms
 
-  - [ ] if
-  - [ ] cond
-  - [ ] let*
-  - [ ] lambda
-  - [ ] define
+  - [X] if
+  - [X] cond
+  - [X] let*
+  - [X] lambda
+  - [X] begin
+  - [X] define
   - [ ] set!
   - [ ] define-syntax-rule (maybe)
 
@@ -36,3 +37,6 @@
 
   - Vector (=#(...)=)
   - Exactness (=#e...= and =#i...= )
+  - Tail optimization
+  - delay
+  - letrec

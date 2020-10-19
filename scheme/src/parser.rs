@@ -3,6 +3,7 @@ use shared::error::Error;
 
 use crate::tokenizer::{Token, TokenValue};
 
+#[derive(Clone, PartialEq)]
 pub enum SyntaxTreeNode
 {
     Atom(Token),
@@ -16,24 +17,48 @@ impl SyntaxTreeNode
         Self::Atom(token)
     }
 
-    pub fn parse(tokens: Vec<Token>) -> Result<Self, Error>
+    pub fn getNodes(&self) -> Option<&Vec<SyntaxTreeNode>>
     {
-        let mut eater = TokenEater::new(tokens);
-        return eater.parse();
+        if let Self::Compound(xs) = self
+        {
+            Some(xs)
+        }
+        else
+        {
+            None
+        }
+    }
+
+    pub fn getToken(&self) -> Option<&Token>
+    {
+        if let Self::Atom(t) = self
+        {
+            Some(t)
+        }
+        else
+        {
+            None
+        }
     }
 
     /// Assume the node is an identifier. Return the identifier as a
-    /// string.
-    pub fn getIdentifierName(&self) -> Result<&str, Error>
+    /// str.
+    pub fn getIdentifier(&self) -> Option<&str>
     {
-        if let Self::Atom(token) = self
+        if let Some(t) = self.getToken()
         {
-            if let TokenValue::Ident(name) = token.value()
-            {
-                return Ok(name);
-            }
+            t.value().getIdentifier()
         }
-        Err(error!(RuntimeError, "Node is not an identifier"))
+        else
+        {
+            None
+        }
+    }
+
+    pub fn parse(tokens: Vec<Token>) -> Result<Vec<Self>, Error>
+    {
+        let mut eater = TokenEater::new(tokens);
+        return eater.parse();
     }
 
     fn toDotInner(&self, i: &mut usize) -> (Vec<String>, String)
@@ -100,7 +125,7 @@ impl TokenEater
         &self.tokens[self.pos]
     }
 
-    fn parse(&mut self) -> Result<SyntaxTreeNode, Error>
+    fn parseOne(&mut self) -> Result<SyntaxTreeNode, Error>
     {
         let current: Token = self.current().clone();
         match current.value()
@@ -115,7 +140,7 @@ impl TokenEater
             {
                 let quote = SyntaxTreeNode::new(current);
                 self.advance();
-                let quoted = self.parse()?;
+                let quoted = self.parseOne()?;
                 return Ok(SyntaxTreeNode::Compound(vec![quote, quoted]));
             },
             TokenValue::Bool(_) | TokenValue::Char(_) | TokenValue::Float(_) |
@@ -134,6 +159,16 @@ impl TokenEater
         }
     }
 
+    fn parse(&mut self) -> Result<Vec<SyntaxTreeNode>, Error>
+    {
+        let mut result = Vec::new();
+        while self.pos < self.tokens.len()
+        {
+            result.push(self.parseOne()?);
+        }
+        Ok(result)
+    }
+
     fn consumeToRightParen(&mut self) -> Result<Vec<SyntaxTreeNode>, Error>
     {
         let mut nodes = Vec::new();
@@ -145,7 +180,7 @@ impl TokenEater
                 break;
             }
 
-            nodes.push(self.parse()?);
+            nodes.push(self.parseOne()?);
         }
 
         // (a . b) -> (cons a b)
@@ -181,6 +216,16 @@ mod tests
         let src = r#"(+ 1 2)"#;
         let tokens = crate::tokenizer::tokenize(src)?;
         let root = SyntaxTreeNode::parse(tokens)?;
+        Ok(())
+    }
+
+    #[test]
+    fn parse() -> Result<(), Error>
+    {
+        let src = r#"1 2"#;
+        let tokens = crate::tokenizer::tokenize(src)?;
+        let root = SyntaxTreeNode::parse(tokens)?;
+        assert_eq!(root.len(), 2);
         Ok(())
     }
 }
