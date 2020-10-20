@@ -14,7 +14,7 @@
   - [X] lambda
   - [X] begin
   - [X] define
-  - [ ] set!
+  - [X] set!
   - [ ] define-syntax-rule (maybe)
 
 * Builtins

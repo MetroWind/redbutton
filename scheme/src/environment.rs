@@ -248,7 +248,24 @@ impl Environment
         }
     }
 
-    pub fn set(&self, name: &str, value: Value)
+    pub fn set(&self, name: &str, value: Value) -> bool
+    {
+        if self.inner.borrow().values.contains_key(name)
+        {
+            self.inner.borrow_mut().values.insert(name.to_owned(), value);
+            true
+        }
+        else if let Some(ref upper) = self.inner.borrow().parent
+        {
+            upper.set(name, value)
+        }
+        else
+        {
+            false
+        }
+    }
+
+    pub fn define(&self, name: &str, value: Value)
     {
         self.inner.borrow_mut().values.insert(name.to_owned(), value);
     }

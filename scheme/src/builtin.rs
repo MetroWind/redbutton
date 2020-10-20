@@ -20,7 +20,7 @@ macro_rules! rterr
 pub fn registerBuiltin(env: &Environment, name: &str,
                        f: fn(&[Value], Environment) -> Result<Value, Error>)
 {
-    env.set(name, Value::Builtin(Builtin::new(name, f)));
+    env.define(name, Value::Builtin(Builtin::new(name, f)));
 }
 
 macro_rules! make_arithm

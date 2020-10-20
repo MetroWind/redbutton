@@ -55,7 +55,8 @@ impl Evaluator
         }
     }
 
-    fn evalEach(&self, env: Environment, nodes: &[SyntaxTreeNode]) -> Result<Vec<Value>, Error>
+    fn evalEach(&self, env: Environment, nodes: &[SyntaxTreeNode]) ->
+        Result<Vec<Value>, Error>
     {
         let result: Result<Vec<Value>, Error> =
             nodes.iter().map(|node| self.evalNode(env.clone(), node)).collect();
@@ -184,7 +185,7 @@ impl Evaluator
 
             let value = self.evalNode(env.clone(), &nodes[1])?;
             println!("Setting {} to {:?}...", name, value);
-            env.set(name, value);
+            env.define(name, value);
         }
 
         Ok(self.evalEach(env, rest)?.pop().unwrap())
@@ -249,7 +250,7 @@ impl Evaluator
         let mut f = Procedure::fromArgsBody(env.clone(), args, body_form);
         f.name = Some(name.to_owned());
         let value = Value::Procedure(f);
-        env.set(name, value);
+        env.define(name, value);
 
         Ok(Value::null())
     }
@@ -273,8 +274,46 @@ impl Evaluator
                 {
                     f.name = Some(name.to_owned());
                 }
-                env.set(name, value);
+                env.define(name, value);
                 Ok(Value::null())
+            },
+
+            // In principle, function definition using define is not a
+            // special form. But here I treat it as one for
+            // simplicity.
+            SyntaxTreeNode::Compound(sig) =>
+                self.evalDefineFunction(env, &sig, form),
+        }
+    }
+
+    fn evalSet(&self, env: Environment, var: &SyntaxTreeNode,
+               form: &[SyntaxTreeNode]) -> EvalResult
+    {
+        match var
+        {
+            SyntaxTreeNode::Atom(_) =>
+            {
+                let name = var.getIdentifier().ok_or_else(
+                    || rterr!("Invalid identifier in define"))?;
+                if form.len() != 1
+                {
+                    return Err(rterr!("Wrong number of expressions in define"));
+                }
+
+                let mut value = self.evalNode(env.clone(), &form[0])?;
+                if let Value::Procedure(f) = &mut value
+                {
+                    f.name = Some(name.to_owned());
+                }
+
+                if !env.set(name, value)
+                {
+                    Err(rterr!("Undefined variable: {}", name))
+                }
+                else
+                {
+                    Ok(Value::null())
+                }
             },
 
             // In principle, function definition using define is not a
@@ -297,6 +336,7 @@ impl Evaluator
             "lambda" => return self.evalLambda(env, &rest[0], &rest[1..]),
             "begin" => return self.evalBegin(env, rest),
             "define" => return self.evalDefine(env, &rest[0], &rest[1..]),
+            "set!" => return self.evalSet(env, &rest[0], &rest[1..]),
             _ => {},
         }
 
@@ -329,12 +369,13 @@ impl Evaluator
         let env = env.derive();
         for i in (0..args.len()).rev()
         {
-            env.set(&arg_names[i], args.pop().unwrap());
+            env.define(&arg_names[i], args.pop().unwrap());
         }
         Ok(self.evalEach(env, f.body())?.pop().unwrap())
     }
 
-    fn evalHeadTail(&self, env: Environment, head: Value, tail: &[SyntaxTreeNode]) -> EvalResult
+    fn evalHeadTail(&self, env: Environment, head: Value,
+                    tail: &[SyntaxTreeNode]) -> EvalResult
     {
         let args = self.evalEach(env.clone(), tail)?;
         match head
@@ -614,6 +655,24 @@ mod tests
 (define (g x) (* (f x) 2))
 (g 1)"#)?;
         assert_eq!(result, Value::Integer(4));
+        let result = Evaluator::evalSource(r#"(define x 100)
+(define (f x) (+ x 1))
+(f 1)"#)?;
+        assert_eq!(result, Value::Integer(2));
+        Ok(())
+    }
+
+    #[test]
+    fn set() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(define x 2) (set! x 1) x"#)?;
+        assert_eq!(result, Value::Integer(1));
+        let result = Evaluator::evalSource(r#"(define x 2)
+(define (f y)
+  (set! x y))
+(f 1) x"#)?;
+        assert_eq!(result, Value::Integer(1));
+        assert!(Evaluator::evalSource(r#"(define x 2) (set! y 1)"#).is_err());
         Ok(())
     }
 }
