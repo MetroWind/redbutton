@@ -18,6 +18,10 @@ fn main() -> Result<(), Error>
     let src = readStdin()?;
     let tokens = tokenizer::tokenize(&src)?;
     let root = parser::SyntaxTreeNode::parse(tokens)?;
+    for node in &root
+    {
+        println!("{}", node.toDot());
+    }
     let e = eval::Evaluator::new(root);
     println!("{}", e.eval()?);
     Ok(())

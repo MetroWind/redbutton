@@ -615,6 +615,25 @@ mod tests
     }
 
     #[test]
+    fn tok0_cons2() -> Result<(), Error>
+    {
+        let src = r#"'((1) . 2)"#;
+        let tokens = tokenize0(src)?;
+        assert_eq!(tokens,
+                   vec![
+                       RT!("'", Quote),
+                       RT!("(", ParenLeft),
+                       RT!("(", ParenLeft),
+                       RT!("1", Stuff),
+                       RT!(")", ParenRight),
+                       RT!(".", Dot),
+                       RT!("2", Stuff),
+                       RT!(")", ParenRight),
+                   ]);
+        Ok(())
+    }
+
+    #[test]
     fn tok0_quasi() -> Result<(), Error>
     {
         let src = r#"`(,v ,@(w))"#;

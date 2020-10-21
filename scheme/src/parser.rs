@@ -182,25 +182,6 @@ impl TokenEater
 
             nodes.push(self.parseOne()?);
         }
-
-        // (a . b) -> (cons a b)
-        if nodes.len() >= 2
-        {
-            if let SyntaxTreeNode::Atom(token) = &nodes[1]
-            {
-                if token.value() == &TokenValue::Dot
-                {
-                    if nodes.len() != 3
-                    {
-                        return Err(error!(ParseError, "Invalid dot expression"));
-                    }
-                    nodes.swap(0, 1);
-                    nodes[0] = SyntaxTreeNode::Atom(
-                        Token::new("", TokenValue::Ident(String::from("cons"))));
-                }
-            }
-        }
-
         return Ok(nodes);
     }
 }

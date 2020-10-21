@@ -110,6 +110,139 @@ impl fmt::Debug for Builtin
     }
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub struct Cons
+{
+    is_list: bool,
+    head: Rc<RefCell<Value>>,
+    tail: Box<Value>,
+}
+
+impl Cons
+{
+    pub fn new(head: Value, tail: Value) -> Self
+    {
+        let mut is_list = tail == Value::null();
+        if !is_list
+        {
+            if let Value::List(c) = &tail
+            {
+                is_list = c.isList();
+            }
+        }
+
+        Self{ is_list: is_list,
+              head: Rc::new(RefCell::new(head)),
+              tail: Box::new(tail),
+        }
+    }
+
+    pub fn nullCons() -> Self
+    {
+        Self::new(Value::null(), Value::null())
+    }
+
+    pub fn car(&self) -> Value
+    {
+        self.head.borrow().clone()
+    }
+
+    pub fn cdr(&self) -> Value
+    {
+        *self.tail.clone()
+    }
+
+    pub fn isList(&self) -> bool
+    {
+        self.is_list
+    }
+
+    fn displayInner(&self, f: &mut fmt::Formatter<'_>, is_first: bool) -> fmt::Result
+    {
+        if is_first
+        {
+            write!(f, "(")?;
+        }
+
+        if self.is_list
+        {
+            let cdr = self.cdr();
+            if cdr == Value::null()
+            {
+                return write!(f, "{})", self.car());
+            }
+            write!(f, "{} ", self.car());
+        }
+        else
+        {
+            write!(f, "{} . ", self.car());
+        }
+
+        let cdr = self.cdr();
+        if let Value::List(cell) = cdr
+        {
+            cell.displayInner(f, false)
+        }
+        else
+        {
+            write!(f, "{})", cdr)
+        }
+    }
+}
+
+impl fmt::Display for Cons
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result
+    {
+        self.displayInner(f, true)
+    }
+}
+
+// #[derive(Debug, Clone, PartialEq)]
+// pub enum Cell
+// {
+//     Element(Cons),
+//     Null,
+// }
+
+// impl Cell
+// {
+//     pub fn newCons(head: Value, tail: Value) -> Self
+//     {
+//         Self::Element(Cons::new(head, tail))
+//     }
+
+//     pub fn nullCons() -> Self
+//     {
+//         Self::Element(Cons::nullCons())
+//     }
+
+//     pub fn car(&self) -> Option<Value>
+//     {
+//         if let Self::Element(c) = self
+//         {
+//             Some(c.car())
+//         }
+//         else
+//         {
+//             None
+//         }
+//     }
+
+//     pub fn cdr(&self) -> Option<Value>
+//     {
+//         if let Self::Element(c) = self
+//         {
+//             Some(c.cdr())
+//         }
+//         else
+//         {
+//             None
+//         }
+//     }
+
+// }
+
 #[derive(Clone, PartialEq, Debug)]
 pub enum Value
 {
@@ -117,18 +250,19 @@ pub enum Value
     Float(f64),
     Char(char),
     String(String),
-    List(Vec<Value>),
+    List(Cons),
     Bool(bool),
     Symbol(String),
     Builtin(Builtin),
     Procedure(Procedure),
+    Null,
 }
 
 impl Value
 {
     pub const fn null() -> Self
     {
-        Self::List(vec![])
+        Self::Null
     }
 
     pub fn isInt(&self) -> bool
@@ -174,6 +308,18 @@ impl Value
             _ => None,
         }
     }
+
+    pub fn asList(&self) -> Option<Cons>
+    {
+        if let Self::List(c) = self
+        {
+            Some(c.clone())
+        }
+        else
+        {
+            None
+        }
+    }
 }
 
 impl fmt::Display for Value
@@ -187,6 +333,7 @@ impl fmt::Display for Value
             Self::Char(x) => write!(f, "{}", x),
             Self::String(x) => write!(f, "{}", x),
             Self::Bool(x) => write!(f, "{}", x),
+            Self::List(x) => write!(f, "{}", x),
             _ => Err(fmt::Error),
         }
     }

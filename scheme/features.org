@@ -5,6 +5,7 @@
   - [X] String
   - [X] Char
   - [X] Bool
+  - [X] Cons & list
 
 * Special forms
 

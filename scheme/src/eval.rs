@@ -3,7 +3,7 @@ use shared::error::Error;
 
 use crate::tokenizer::{Token, TokenValue};
 use crate::parser::SyntaxTreeNode;
-use crate::environment::{Environment, Value, Procedure};
+use crate::environment::{Environment, Value, Procedure, Cons};
 use crate::builtin;
 
 pub struct Evaluator
@@ -51,7 +51,7 @@ impl Evaluator
                     Err(rterr!("Undefined variable: {}", name))
                 }
             },
-            _ => unreachable!(),
+            _ => Err(rterr!("Invalid token")),
         }
     }
 
@@ -77,6 +77,17 @@ impl Evaluator
         }
     }
 
+    fn evalQuotedPair(&self, pair_literal: &[SyntaxTreeNode]) -> EvalResult
+    {
+        if pair_literal.len() != 3
+        {
+            return Err(rterr!("Invalid dot-pair"));
+        }
+
+        Ok(Value::List(Cons::new(self.evalQuote(&pair_literal[0])?,
+                                 self.evalQuote(&pair_literal[2])?)))
+    }
+
     fn evalQuote(&self, quoted: &SyntaxTreeNode) -> EvalResult
     {
         match quoted
@@ -84,9 +95,25 @@ impl Evaluator
             SyntaxTreeNode::Atom(token) => self.quoteAtom(token),
             SyntaxTreeNode::Compound(nodes) =>
             {
-                let result: Result<Vec<Value>, Error> =
-                    nodes.iter().map(|node| self.evalQuote(node)).collect();
-                Ok(Value::List(result?))
+                // Is it like '(a . b)?
+                if nodes.len() >= 2
+                {
+                    if let SyntaxTreeNode::Atom(token) = &nodes[1]
+                    {
+                        if token.value() == &TokenValue::Dot
+                        {
+                            return self.evalQuotedPair(&nodes[..]);
+                        }
+                    }
+                }
+
+                let mut last = Value::null();
+                for node in nodes.iter().rev()
+                {
+                    last = Value::List(Cons::new(self.evalQuote(node)?, last));
+                }
+
+                Ok(last)
             },
         }
     }
@@ -184,7 +211,6 @@ impl Evaluator
                 || rterr!("Invalid variable in let* binding"))?;
 
             let value = self.evalNode(env.clone(), &nodes[1])?;
-            println!("Setting {} to {:?}...", name, value);
             env.define(name, value);
         }
 
@@ -390,6 +416,8 @@ impl Evaluator
     {
         let head: &SyntaxTreeNode = &nodes[0];
 
+        // TODO: See if nodes[1] is a dot. If it is, it’s an error.
+
         match head
         {
             SyntaxTreeNode::Atom(token) =>
@@ -552,9 +580,12 @@ mod tests
         let result = Evaluator::evalSource(r#"'(a b)"#)?;
         if let Value::List(vs) = result
         {
-            assert_eq!(vs.len(), 2);
-            assert_eq!(vs[0], Value::Symbol(String::from("a")));
-            assert_eq!(vs[1], Value::Symbol(String::from("b")));
+            assert_eq!(vs.car(), Value::Symbol("a".to_owned()));
+            if let Value::List(tail) = vs.cdr()
+            {
+                assert_eq!(tail.car(), Value::Symbol("b".to_owned()));
+                assert_eq!(tail.cdr(), Value::null());
+            }
         }
         else
         {
@@ -675,4 +706,19 @@ mod tests
         assert!(Evaluator::evalSource(r#"(define x 2) (set! y 1)"#).is_err());
         Ok(())
     }
+
+    #[test]
+    fn list_display() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"'(1 2)"#)?;
+        assert_eq!(format!("{}", result), "(1 2)");
+        let result = Evaluator::evalSource(r#"'((1 3) 2)"#)?;
+        assert_eq!(format!("{}", result), "((1 3) 2)");
+        let result = Evaluator::evalSource(r#"'((1 2) . 3)"#)?;
+        assert_eq!(format!("{}", result), "((1 2) . 3)");
+        let result = Evaluator::evalSource(r#"'((1 2) . ())"#)?;
+        assert_eq!(format!("{}", result), "((1 2))");
+        Ok(())
+    }
+
 }
