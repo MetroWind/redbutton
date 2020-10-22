@@ -1,7 +1,8 @@
 use shared::error;
 use shared::error::Error;
 
-use crate::environment::{Value, Environment, Builtin};
+use crate::value::{Value, Builtin};
+use crate::environment::Environment;
 
 // Construct a RuntimeError
 macro_rules! rterr
@@ -146,6 +147,44 @@ pub fn divide(args: &[Value], _: Environment) -> Result<Value, Error>
     }
 }
 
+pub fn car(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() != 1
+    {
+        return Err(rterr!("Car expects 1 argument"));
+    }
+
+    match &args[0]
+    {
+        Value::List(cons) => Ok(cons.car()),
+        _ => Err(rterr!("Car expects cons argument")),
+    }
+}
+
+pub fn cdr(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() != 1
+    {
+        return Err(rterr!("Cdr expects 1 argument"));
+    }
+
+    match &args[0]
+    {
+        Value::List(cons) => Ok(cons.cdr()),
+        _ => Err(rterr!("Cdr expects cons argument")),
+    }
+}
+
+pub fn not(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() != 1
+    {
+        return Err(rterr!("“Not” expects 1 argument"));
+    }
+
+    Ok(Value::Bool(!args[0].toBool()))
+}
+
 pub fn getBuiltinEnv() -> Environment
 {
     let result = Environment::new();
@@ -153,5 +192,8 @@ pub fn getBuiltinEnv() -> Environment
     registerBuiltin(&result, "-", minus);
     registerBuiltin(&result, "*", multiply);
     registerBuiltin(&result, "/", divide);
+    registerBuiltin(&result, "car", car);
+    registerBuiltin(&result, "cdr", cdr);
+    registerBuiltin(&result, "not", not);
     result
 }

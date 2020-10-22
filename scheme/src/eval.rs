@@ -3,7 +3,8 @@ use shared::error::Error;
 
 use crate::tokenizer::{Token, TokenValue};
 use crate::parser::SyntaxTreeNode;
-use crate::environment::{Environment, Value, Procedure, Cons};
+use crate::environment::Environment;
+use crate::value::{Value, Procedure, Cons};
 use crate::builtin;
 
 pub struct Evaluator
@@ -350,6 +351,42 @@ impl Evaluator
         }
     }
 
+    fn evalAnd(&self, env: Environment, rest: &[SyntaxTreeNode]) -> EvalResult
+    {
+        let mut result = Value::Bool(true);
+        for expr in rest
+        {
+            let value = self.evalNode(env.clone(), expr)?;
+            if value.toBool()
+            {
+                result = value;
+            }
+            else
+            {
+                return Ok(value);
+            }
+        }
+        Ok(result)
+    }
+
+    fn evalOr(&self, env: Environment, rest: &[SyntaxTreeNode]) -> EvalResult
+    {
+        let mut result = Value::Bool(false);
+        for expr in rest
+        {
+            let value = self.evalNode(env.clone(), expr)?;
+            if value.toBool()
+            {
+                return Ok(value);
+            }
+            else
+            {
+                result = value;
+            }
+        }
+        Ok(result)
+    }
+
     fn evalNamedCompound(&self, env: Environment, name: &str,
                          rest: &[SyntaxTreeNode]) -> EvalResult
     {
@@ -363,6 +400,8 @@ impl Evaluator
             "begin" => return self.evalBegin(env, rest),
             "define" => return self.evalDefine(env, &rest[0], &rest[1..]),
             "set!" => return self.evalSet(env, &rest[0], &rest[1..]),
+            "and" => return self.evalAnd(env, rest),
+            "or" => return self.evalOr(env, rest),
             _ => {},
         }
 
@@ -721,4 +760,65 @@ mod tests
         Ok(())
     }
 
+    #[test]
+    fn car() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(car '(1))"#)?;
+        assert_eq!(result, Value::Integer(1));
+        let result = Evaluator::evalSource(r#"(car '((1)))"#)?;
+        assert_eq!(format!("{}", result), "(1)");
+        let result = Evaluator::evalSource(r#"(car '(1) '(2))"#);
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn cdr() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(cdr '(1))"#)?;
+        assert_eq!(result, Value::null());
+        let result = Evaluator::evalSource(r#"(cdr '(() (1)))"#)?;
+        assert_eq!(format!("{}", result), "((1))");
+        let result = Evaluator::evalSource(r#"(cdr '(1) '(2))"#);
+        assert!(result.is_err());
+        Ok(())
+    }
+
+    #[test]
+    fn and() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(and 1 2 'c '(f g))"#)?;
+        assert_eq!(result.to_string(), "(f g)");
+        let result = Evaluator::evalSource(r#"(and)"#)?;
+        assert_eq!(result, Value::Bool(true));
+
+        // (if) is not evaluated.
+        let result = Evaluator::evalSource(r#"(and #f (if))"#)?;
+        assert_eq!(result, Value::Bool(false));
+        Ok(())
+    }
+
+    #[test]
+    fn or() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(or 1 (if))"#)?;
+        assert_eq!(result, Value::Integer(1));
+        let result = Evaluator::evalSource(r#"(or)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        Ok(())
+    }
+
+    #[test]
+    fn not() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(not #t)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        let result = Evaluator::evalSource(r#"(not 3)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        let result = Evaluator::evalSource(r#"(not #f)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(not '())"#)?;
+        assert_eq!(result, Value::Bool(false));
+        Ok(())
+    }
 }

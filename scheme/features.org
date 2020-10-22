@@ -17,15 +17,16 @@
   - [X] define
   - [X] set!
   - [ ] define-syntax-rule (maybe)
+  - [X] and, or
 
 * Builtins
 
   - [X] +-*/
-  - [ ] car, cdr
+  - [X] car, cdr
   - [X] Quotation
   - [ ] Quasiquote (maybe)
-  - [ ] and, or, not
-  - [ ] Comparisons
+  - [X] not
+  - [ ] Basic comparisons
   - [ ] null?
   - [ ] cons
   - [ ] list
@@ -41,3 +42,4 @@
   - Tail optimization
   - delay
   - letrec
+  - call/cc

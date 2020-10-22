@@ -2,6 +2,7 @@
 
 pub mod tokenizer;
 pub mod parser;
+pub mod value;
 pub mod environment;
 pub mod eval;
 pub mod builtin;
