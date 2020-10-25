@@ -43,6 +43,16 @@ impl Environment
         result
     }
 
+    pub fn members(&self) -> Vec<String>
+    {
+        let mut result = Vec::new();
+        for (name, _) in &self.inner.borrow().values
+        {
+            result.push(name.clone());
+        }
+        result
+    }
+
     pub fn find(&self, name: &str) -> Option<Value>
     {
         if let Some(v) = self.inner.borrow().values.get(name)
@@ -79,5 +89,13 @@ impl Environment
     pub fn define(&self, name: &str, value: Value)
     {
         self.inner.borrow_mut().values.insert(name.to_owned(), value);
+    }
+
+    pub fn merge(&self, rhs: Environment)
+    {
+        for (name, value) in &rhs.inner.borrow().values
+        {
+            self.define(name, value.clone());
+        }
     }
 }

@@ -32,6 +32,11 @@ impl Evaluator
         Self{ code: code, env: builtin::getBuiltinEnv() }
     }
 
+    pub fn env(&self) -> Environment
+    {
+        self.env.clone()
+    }
+
     fn evalAtom(&self, env: Environment, token: &Token) -> EvalResult
     {
         match token.value()
@@ -508,6 +513,7 @@ impl Evaluator
         let roots = SyntaxTreeNode::parse(tokens)?;
         Self::new(roots).eval()
     }
+
 }
 
 #[cfg(test)]
@@ -821,4 +827,137 @@ mod tests
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
+
+    #[test]
+    fn num_equal() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(= 1 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(= 1 2)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        let result = Evaluator::evalSource(r#"(= 1 1 1 1.0 1 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(= 1 1 2 1 1 1)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        Ok(())
+    }
+
+    #[test]
+    fn num_less_than() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(< 1 1)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        let result = Evaluator::evalSource(r#"(< 1 2)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(< 1 1.01 1.02 2)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(< 1 1.0 1.01)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        Ok(())
+    }
+
+    #[test]
+    fn num_less_or_equal() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(<= 1 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(<= 1 2)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(<= 1 0.99)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        let result = Evaluator::evalSource(r#"(<= 1 1.0 1.01)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        Ok(())
+    }
+
+    #[test]
+    fn num_greater_than() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(> 1 1)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        let result = Evaluator::evalSource(r#"(> 2 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(> 2 1.02 1.01 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(> 1.01 1.0 1)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        Ok(())
+    }
+
+    #[test]
+    fn num_greater_or_equal() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(>= 1 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(>= 2 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(>= 0.99 1)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        let result = Evaluator::evalSource(r#"(>= 1.01 1.0 1)"#)?;
+        assert_eq!(result, Value::Bool(true));
+        Ok(())
+    }
+
+    #[test]
+    fn nullp() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(null? '())"#)?;
+        assert_eq!(result, Value::Bool(true));
+        let result = Evaluator::evalSource(r#"(null? 0)"#)?;
+        assert_eq!(result, Value::Bool(false));
+        Ok(())
+    }
+
+    #[test]
+    fn cons() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(cons 'a 2)"#)?;
+        assert_eq!(result.to_string(), "(a . 2)");
+        let result = Evaluator::evalSource(r#"(cons 'a '())"#)?;
+        assert_eq!(result.to_string(), "(a)");
+        Ok(())
+    }
+
+    #[test]
+    fn list() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(list 'a 2)"#)?;
+        assert_eq!(result.to_string(), "(a 2)");
+        let result = Evaluator::evalSource(r#"(list 'a '())"#)?;
+        assert_eq!(result.to_string(), "(a ())");
+        let result = Evaluator::evalSource(r#"(list)"#)?;
+        assert_eq!(result.to_string(), "()");
+        Ok(())
+    }
+
+    #[test]
+    fn append() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(append '(x) '(y))"#)?;
+        assert_eq!(result.to_string(), "(x y)");
+        let result = Evaluator::evalSource(r#"(append '())"#)?;
+        assert_eq!(result.to_string(), "()");
+        let result = Evaluator::evalSource(r#"(append '(a) '(b c d))"#)?;
+        assert_eq!(result.to_string(), "(a b c d)");
+        let result = Evaluator::evalSource(r#"(append '(a (b)) '((c)))"#)?;
+        assert_eq!(result.to_string(), "(a (b) (c))");
+        let result = Evaluator::evalSource(r#"(append '(a b) '(c . d))"#)?;
+        assert_eq!(result.to_string(), "(a b c . d)");
+        let result = Evaluator::evalSource(r#"(append '() 'a)"#)?;
+        assert_eq!(result.to_string(), "a");
+        Ok(())
+    }
+
+    #[test]
+    fn reverse() -> Result<(), Error>
+    {
+        let result = Evaluator::evalSource(r#"(reverse '(a b c))"#)?;
+        assert_eq!(result.to_string(), "(c b a)");
+        let result = Evaluator::evalSource(r#"(reverse '())"#)?;
+        assert_eq!(result.to_string(), "()");
+        let result = Evaluator::evalSource(r#"(reverse '(a (b c) d (e (f))))"#)?;
+        assert_eq!(result.to_string(), "((e (f)) d (b c) a)");
+        Ok(())
+    }
+
 }

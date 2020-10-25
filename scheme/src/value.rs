@@ -163,28 +163,16 @@ impl Cons
             write!(f, "(")?;
         }
 
-        if self.is_list
-        {
-            let cdr = self.cdr();
-            if cdr == Value::null()
-            {
-                return write!(f, "{})", self.car());
-            }
-            write!(f, "{} ", self.car())?;
-        }
-        else
-        {
-            write!(f, "{} . ", self.car())?;
-        }
-
         let cdr = self.cdr();
-        if let Value::List(cell) = cdr
+        match cdr
         {
-            cell.displayInner(f, false)
-        }
-        else
-        {
-            write!(f, "{})", cdr)
+            Value::Null => write!(f, "{})", self.car()),
+            Value::List(cell) =>
+            {
+                write!(f, "{} ", self.car())?;
+                cell.displayInner(f, false)
+            },
+            _ => write!(f, "{} . {})", self.car(), self.tail),
         }
     }
 }
@@ -210,6 +198,38 @@ pub enum Value
     Builtin(Builtin),
     Procedure(Procedure),
     Null,
+}
+
+macro_rules! numericalCompare
+{
+    ($name:ident, $op:tt) =>
+    {
+        pub fn $name(&self, rhs: &Self) -> bool
+        {
+            match self
+            {
+                Self::Integer(n) =>
+                {
+                    match rhs
+                    {
+                        Self::Integer(m) => n $op m,
+                        Self::Float(m) => (*n as f64) $op *m,
+                        _ => false,
+                    }
+                },
+                Self::Float(n) =>
+                {
+                    match rhs
+                    {
+                        Self::Integer(m) => *n $op (*m as f64),
+                        Self::Float(m) => n $op m,
+                        _ => false,
+                    }
+                },
+                _ => false,
+            }
+        }
+    };
 }
 
 impl Value
@@ -275,9 +295,61 @@ impl Value
         }
     }
 
+    numericalCompare!(numericalEq, ==);
+    numericalCompare!(numericalGreaterThan, >);
+    numericalCompare!(numericalLessThan, <);
+    numericalCompare!(numericalGreaterOrEq, >=);
+    numericalCompare!(numericalLessOrEq, <=);
+
     pub fn toBool(&self) -> bool
     {
         self != &Self::Bool(false)
+    }
+
+    pub fn list2ReversedVec(&self) -> Option<Vec<Value>>
+    {
+        let cons = if let Self::List(cons) = self
+        {
+            cons
+        }
+        else
+        {
+            return None;
+        };
+
+        let cdr = cons.cdr();
+        match &cdr
+        {
+            Value::Null => Some(vec![cons.car(),]),
+            Value::List(_) =>
+            {
+                let mut result = if let Some(v) = cdr.list2ReversedVec()
+                {
+                    v
+                }
+                else
+                {
+                    return None;
+                };
+
+                result.push(cons.car());
+                Some(result)
+            },
+            _ => None,
+        }
+    }
+
+    pub fn list2Vec(&self) -> Option<Vec<Value>>
+    {
+        if let Some(mut v) = self.list2ReversedVec()
+        {
+            v.reverse();
+            Some(v)
+        }
+        else
+        {
+            None
+        }
     }
 }
 
@@ -294,7 +366,28 @@ impl fmt::Display for Value
             Self::Bool(x) => if *x { write!(f, "#t") } else { write!(f, "#f") },
             Self::List(x) => write!(f, "{}", x),
             Self::Symbol(x) => write!(f, "{}", x),
+            Self::Null => write!(f, "()"),
             _ => Err(fmt::Error),
         }
+    }
+}
+
+impl From<Vec<Value>> for Value
+{
+    fn from(mut v: Vec<Value>) -> Self
+    {
+        if v.is_empty()
+        {
+            return Self::null();
+        }
+
+        let mut result = Self::null();
+
+        while !v.is_empty()
+        {
+            result = Value::List(Cons::new(v.pop().unwrap(), result));
+        }
+
+        result
     }
 }

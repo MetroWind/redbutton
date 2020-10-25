@@ -26,12 +26,13 @@
   - [X] Quotation
   - [ ] Quasiquote (maybe)
   - [X] not
-  - [ ] Basic comparisons
-  - [ ] null?
-  - [ ] cons
-  - [ ] list
-  - [ ] append
-  - [ ] display
+  - [X] Basic comparisons
+  - [X] null?
+  - [X] cons
+  - [X] list
+  - [X] append
+  - [X] reverse
+  - [X] display
   - [ ] apply
   - [ ] eval (maybe)
 

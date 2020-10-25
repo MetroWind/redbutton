@@ -1,8 +1,9 @@
 use shared::error;
 use shared::error::Error;
 
-use crate::value::{Value, Builtin};
+use crate::value::{self, Value, Builtin};
 use crate::environment::Environment;
+use crate::eval;
 
 // Construct a RuntimeError
 macro_rules! rterr
@@ -185,6 +186,271 @@ pub fn not(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(!args[0].toBool()))
 }
 
+pub fn numEqual(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() < 2
+    {
+        return Err(rterr!("= expects >1 arguments"));
+    }
+
+    let num = &args[0];
+    for arg in &args[1..]
+    {
+        if !num.numericalEq(arg)
+        {
+            return Ok(Value::Bool(false));
+        }
+    }
+
+    Ok(Value::Bool(true))
+}
+
+pub fn numLessThan(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() < 2
+    {
+        return Err(rterr!("< expects >1 arguments"));
+    }
+
+    let mut prev: &Value = &args[0];
+    for arg in &args[1..]
+    {
+        if !prev.numericalLessThan(arg)
+        {
+            return Ok(Value::Bool(false));
+        }
+        prev = arg;
+    }
+
+    Ok(Value::Bool(true))
+}
+
+pub fn numLessOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() < 2
+    {
+        return Err(rterr!("<= expects >1 arguments"));
+    }
+
+    let mut prev = &args[0];
+    for arg in &args[1..]
+    {
+        if !prev.numericalLessOrEq(arg)
+        {
+            return Ok(Value::Bool(false));
+        }
+        prev = arg;
+    }
+
+    Ok(Value::Bool(true))
+}
+
+pub fn numGreaterThan(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() < 2
+    {
+        return Err(rterr!("> expects >1 arguments"));
+    }
+
+    let mut prev: &Value = &args[0];
+    for arg in &args[1..]
+    {
+        if !prev.numericalGreaterThan(arg)
+        {
+            return Ok(Value::Bool(false));
+        }
+        prev = arg;
+    }
+
+    Ok(Value::Bool(true))
+}
+
+pub fn numGreaterOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() < 2
+    {
+        return Err(rterr!(">= expects >1 arguments"));
+    }
+
+    let mut prev = &args[0];
+    for arg in &args[1..]
+    {
+        if !prev.numericalGreaterOrEq(arg)
+        {
+            return Ok(Value::Bool(false));
+        }
+        prev = arg;
+    }
+
+    Ok(Value::Bool(true))
+}
+
+pub fn nullp(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() != 1
+    {
+        return Err(rterr!("Null? expects 1 argument"));
+    }
+
+    Ok(Value::Bool(args[0] == Value::null()))
+}
+
+pub fn cons(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() != 2
+    {
+        return Err(rterr!("Cons expects 2 argument"));
+    }
+
+    Ok(Value::List(value::Cons::new(args[0].clone(), args[1].clone())))
+}
+
+pub fn list(args: &[Value], e: Environment) -> Result<Value, Error>
+{
+    if args.is_empty()
+    {
+        Ok(Value::null())
+    }
+    else
+    {
+        cons(&[args[0].clone(), list(&args[1..], e.clone())?], e)
+    }
+}
+
+fn append1(arg: &Value, to: Value) -> Result<Value, Error>
+{
+    match arg
+    {
+        Value::List(cons) =>
+        {
+            if cons.cdr() == Value::null()
+            {
+                Ok(Value::List(value::Cons::new(cons.car(), to)))
+            }
+            else
+            {
+                Ok(Value::List(value::Cons::new(
+                    cons.car(), append1(&cons.cdr(), to)?)))
+            }
+        },
+        Value::Null => Ok(to),
+        _ => Err(rterr!("Append expects lists")),
+    }
+}
+
+pub fn append(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.is_empty()
+    {
+        return Err(rterr!("Append expects >= 1 arguments"));
+    }
+
+    let mut result = args.last().unwrap().clone();
+    for arg in args[..args.len() - 1].iter().rev()
+    {
+        result = append1(arg, result)?;
+    }
+    Ok(result)
+}
+
+// fn listLength(arg: &Value) -> Result<i64, Error>
+// {
+//     match arg
+//     {
+//         Value::Null => Ok(0),
+//         Value::List(cons) => Ok(1 + listLength(&cons.cdr())?),
+//         _ => Err(rterr!("Length: Not a proper list")),
+//     }
+// }
+
+// pub fn length(args: &[Value], _: Environment) -> Result<Value, Error>
+// {
+//     if args.len() == 1
+//     {
+//         listLength(&args[0]).map(|n| Value::Integer(n))
+//     }
+//     else
+//     {
+//         Err(rterr!("Length expects 1 argument"))
+//     }
+// }
+
+pub fn reverse(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() != 1
+    {
+        return Err(rterr!("Reverse expects 1 argument"));
+    }
+
+    if args[0] == Value::null()
+    {
+        return Ok(Value::null());
+    }
+
+    let v = args[0].list2ReversedVec().
+        ok_or_else(|| rterr!("Reverse expects a list"))?;
+    Ok(Value::from(v))
+}
+
+pub fn display(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() == 2
+    {
+        return Err(rterr!("Display to port is currently unimplemented"));
+    }
+
+    if args.len() != 1
+    {
+        return Err(rterr!("Display expects 1 argument"));
+    }
+
+    print!("{}", args[0]);
+    Ok(Value::null())
+}
+
+pub fn newline(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    if args.len() == 1
+    {
+        return Err(rterr!("Newline to port is currently unimplemented"));
+    }
+
+    if !args.is_empty()
+    {
+        return Err(rterr!("newline does not take arguments"));
+    }
+
+    println!("");
+    Ok(Value::null())
+}
+
+pub fn load(args: &[Value], env: Environment) -> Result<Value, Error>
+{
+    if args.len() != 1
+    {
+        return Err(rterr!("Load expects 1 argument"));
+    }
+
+    let filename: &str = if let Value::String(s) = &args[0]
+    {
+        s
+    }
+    else
+    {
+        return Err(rterr!("Load expects a string"));
+    };
+
+    let src = std::fs::read_to_string(filename)
+        .map_err(|_| rterr!("Load: failed to open {}", filename))?;
+
+    let tokens = crate::tokenizer::tokenize(&src)?;
+    let roots = crate::parser::SyntaxTreeNode::parse(tokens)?;
+    let e = eval::Evaluator::new(roots);
+    e.eval()?;
+    env.merge(e.env());
+    Ok(Value::null())
+}
+
 pub fn getBuiltinEnv() -> Environment
 {
     let result = Environment::new();
@@ -195,5 +461,18 @@ pub fn getBuiltinEnv() -> Environment
     registerBuiltin(&result, "car", car);
     registerBuiltin(&result, "cdr", cdr);
     registerBuiltin(&result, "not", not);
+    registerBuiltin(&result, "=", numEqual);
+    registerBuiltin(&result, "<", numLessThan);
+    registerBuiltin(&result, "<=", numLessOrEq);
+    registerBuiltin(&result, ">", numGreaterThan);
+    registerBuiltin(&result, ">=", numGreaterOrEq);
+    registerBuiltin(&result, "null?", nullp);
+    registerBuiltin(&result, "cons", cons);
+    registerBuiltin(&result, "list", list);
+    registerBuiltin(&result, "append", append);
+    registerBuiltin(&result, "reverse", reverse);
+    registerBuiltin(&result, "display", display);
+    registerBuiltin(&result, "newline", newline);
+    registerBuiltin(&result, "load", load);
     result
 }
