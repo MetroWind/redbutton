@@ -136,11 +136,6 @@ impl Cons
         }
     }
 
-    pub fn nullCons() -> Self
-    {
-        Self::new(Value::null(), Value::null())
-    }
-
     pub fn car(&self) -> Value
     {
         self.head.borrow().clone()
@@ -239,18 +234,6 @@ impl Value
         Self::Null
     }
 
-    pub fn isInt(&self) -> bool
-    {
-        if let Self::Integer(_) = self
-        {
-            true
-        }
-        else
-        {
-            false
-        }
-    }
-
     pub fn isFloat(&self) -> bool
     {
         if let Self::Float(_) = self
@@ -280,18 +263,6 @@ impl Value
             Self::Float(x) => Some(*x),
             Self::Integer(x) => Some(*x as f64),
             _ => None,
-        }
-    }
-
-    pub fn asList(&self) -> Option<Cons>
-    {
-        if let Self::List(c) = self
-        {
-            Some(c.clone())
-        }
-        else
-        {
-            None
         }
     }
 
@@ -336,19 +307,6 @@ impl Value
                 Some(result)
             },
             _ => None,
-        }
-    }
-
-    pub fn list2Vec(&self) -> Option<Vec<Value>>
-    {
-        if let Some(mut v) = self.list2ReversedVec()
-        {
-            v.reverse();
-            Some(v)
-        }
-        else
-        {
-            None
         }
     }
 }

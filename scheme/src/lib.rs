@@ -1,18 +1,13 @@
 #![allow(non_snake_case)]
 
-pub mod tokenizer;
-pub mod parser;
+#[macro_use]
+extern crate shared;
+
+mod tokenizer;
+mod parser;
 pub mod value;
 pub mod environment;
 pub mod eval;
 pub mod builtin;
-
-#[cfg(test)]
-mod tests
-{
-    #[test]
-    fn it_works()
-    {
-        assert_eq!(2 + 2, 4);
-    }
-}
+mod runtime_env;
+pub mod user_utils;

@@ -61,6 +61,7 @@ impl SyntaxTreeNode
         return eater.parse();
     }
 
+    #[allow(dead_code)]
     fn toDotInner(&self, i: &mut usize) -> (Vec<String>, String)
     {
         let mut output = Vec::new();
@@ -86,6 +87,7 @@ impl SyntaxTreeNode
         return (output, self_name);
     }
 
+    #[allow(dead_code)]
     pub fn toDot(&self) -> String
     {
         let mut output = Vec::new();
@@ -196,7 +198,7 @@ mod tests
     {
         let src = r#"(+ 1 2)"#;
         let tokens = crate::tokenizer::tokenize(src)?;
-        let root = SyntaxTreeNode::parse(tokens)?;
+        SyntaxTreeNode::parse(tokens)?;
         Ok(())
     }
 

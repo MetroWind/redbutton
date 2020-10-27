@@ -1,31 +1,7 @@
 use std::convert::TryFrom;
-use std::fmt;
 
 use shared::error;
 use shared::error::Error;
-
-#[derive(Debug, PartialEq)]
-pub struct TokenData<T: Default>
-{
-    src: String,
-    data: T,
-}
-
-impl<T: Default> TokenData<T>
-{
-    pub fn new(src: &str) -> Self
-    {
-        Self{ src: src.to_owned(), data: T::default() }
-    }
-
-    pub fn fromString(src: String) -> Self
-    {
-        Self{ src: src, data: T::default() }
-    }
-
-}
-
-type RawTokenData = TokenData<()>;
 
 #[derive(Debug, PartialEq, Clone)]
 enum RawTokenKind
@@ -137,6 +113,7 @@ pub struct Token
 
 impl Token
 {
+    #[allow(dead_code)]
     pub fn new(src: &str, v: TokenValue) -> Self
     {
         Self{ src: String::from(src), value: v }
@@ -320,8 +297,27 @@ fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
     let mut token_buffer: Vec<char> = Vec::new();
     let mut state = State::Generic;
     let mut last = ' ';
-    for c in src.chars()
+    let chars: Vec<char> = src.chars().collect();
+    let mut i = 0;
+    while i < chars.len()
     {
+        let c = chars[i];
+
+        // Skip comments.
+        if state != State::String && c == ';'
+        {
+            loop
+            {
+                i += 1;
+                if chars[i] == '\n' // Comment ends here.
+                {
+                    break;
+                }
+            }
+            i += 1;             // Skip the newline.
+            continue;
+        }
+
         match state
         {
             State::Generic =>
@@ -455,6 +451,7 @@ fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
         }
 
         last = c;
+        i += 1;
     }
     if !token_buffer.is_empty() && state == State::Stuff
     {

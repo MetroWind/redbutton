@@ -5,16 +5,6 @@ use crate::value::{self, Value, Builtin};
 use crate::environment::Environment;
 use crate::eval;
 
-// Construct a RuntimeError
-macro_rules! rterr
-{
-    ($msg:literal) => { error!(RuntimeError, $msg) };
-    ($msg:literal $(, $x:expr)+) =>
-    {
-        error!(RuntimeError, format!($msg $(, $x)+))
-    };
-}
-
 /// Register a builtin to a environment.
 ///
 /// Example: `register_builtin!(env, "+", add)` regiesters function
@@ -25,11 +15,53 @@ pub fn registerBuiltin(env: &Environment, name: &str,
     env.define(name, Value::Builtin(Builtin::new(name, f)));
 }
 
+#[macro_export]
+macro_rules! builtin_args_check
+{
+    ($name: literal, $args:ident = $count: literal) =>
+    {
+        if $args.len() != $count
+        {
+            return Err(rterr!("{} expects {} argument(s)", $name, $count));
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! builtin_define_arg
+{
+    ($func_name: literal, $args:ident[$index: literal]: String) =>
+    {
+        if let Value::String(x__) = &$args[$index]
+        {
+            x__
+        }
+        else
+        {
+            return Err(rterr!("{}'s argument {} should be a {}",
+                              $func_name, $index, stringify!($variant)));
+        }
+    };
+
+    ($func_name: literal, $args:ident[$index: literal]: $variant: ident) =>
+    {
+        if let Value::$variant(x__) = $args[$index]
+        {
+            x__
+        }
+        else
+        {
+            return Err(rterr!("{}'s argument {} should be a {}",
+                              $func_name, $index, stringify!($variant)));
+        }
+    };
+}
+
 macro_rules! make_arithm
 {
     ($name:ident, $op:tt) =>
     {
-        pub fn $name(args: &[Value], _: Environment) -> Result<Value, Error>
+        fn $name(args: &[Value], _: Environment) -> Result<Value, Error>
         {
             if args.len() < 2
             {
@@ -87,7 +119,7 @@ make_arithm!(add, +=);
 make_arithm!(minus, -=);
 make_arithm!(multiply, *=);
 
-pub fn divide(args: &[Value], _: Environment) -> Result<Value, Error>
+fn divide(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() < 2
     {
@@ -148,7 +180,7 @@ pub fn divide(args: &[Value], _: Environment) -> Result<Value, Error>
     }
 }
 
-pub fn car(args: &[Value], _: Environment) -> Result<Value, Error>
+fn car(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() != 1
     {
@@ -162,7 +194,7 @@ pub fn car(args: &[Value], _: Environment) -> Result<Value, Error>
     }
 }
 
-pub fn cdr(args: &[Value], _: Environment) -> Result<Value, Error>
+fn cdr(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() != 1
     {
@@ -176,7 +208,7 @@ pub fn cdr(args: &[Value], _: Environment) -> Result<Value, Error>
     }
 }
 
-pub fn not(args: &[Value], _: Environment) -> Result<Value, Error>
+fn not(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() != 1
     {
@@ -186,7 +218,7 @@ pub fn not(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(!args[0].toBool()))
 }
 
-pub fn numEqual(args: &[Value], _: Environment) -> Result<Value, Error>
+fn numEqual(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() < 2
     {
@@ -205,7 +237,7 @@ pub fn numEqual(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(true))
 }
 
-pub fn numLessThan(args: &[Value], _: Environment) -> Result<Value, Error>
+fn numLessThan(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() < 2
     {
@@ -225,7 +257,7 @@ pub fn numLessThan(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(true))
 }
 
-pub fn numLessOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
+fn numLessOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() < 2
     {
@@ -245,7 +277,7 @@ pub fn numLessOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(true))
 }
 
-pub fn numGreaterThan(args: &[Value], _: Environment) -> Result<Value, Error>
+fn numGreaterThan(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() < 2
     {
@@ -265,7 +297,7 @@ pub fn numGreaterThan(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(true))
 }
 
-pub fn numGreaterOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
+fn numGreaterOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() < 2
     {
@@ -285,7 +317,7 @@ pub fn numGreaterOrEq(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(true))
 }
 
-pub fn nullp(args: &[Value], _: Environment) -> Result<Value, Error>
+fn nullp(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() != 1
     {
@@ -295,7 +327,7 @@ pub fn nullp(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(args[0] == Value::null()))
 }
 
-pub fn cons(args: &[Value], _: Environment) -> Result<Value, Error>
+fn cons(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() != 2
     {
@@ -305,7 +337,7 @@ pub fn cons(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::List(value::Cons::new(args[0].clone(), args[1].clone())))
 }
 
-pub fn list(args: &[Value], e: Environment) -> Result<Value, Error>
+fn list(args: &[Value], e: Environment) -> Result<Value, Error>
 {
     if args.is_empty()
     {
@@ -338,7 +370,7 @@ fn append1(arg: &Value, to: Value) -> Result<Value, Error>
     }
 }
 
-pub fn append(args: &[Value], _: Environment) -> Result<Value, Error>
+fn append(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.is_empty()
     {
@@ -363,7 +395,7 @@ pub fn append(args: &[Value], _: Environment) -> Result<Value, Error>
 //     }
 // }
 
-// pub fn length(args: &[Value], _: Environment) -> Result<Value, Error>
+// fn length(args: &[Value], _: Environment) -> Result<Value, Error>
 // {
 //     if args.len() == 1
 //     {
@@ -375,7 +407,7 @@ pub fn append(args: &[Value], _: Environment) -> Result<Value, Error>
 //     }
 // }
 
-pub fn reverse(args: &[Value], _: Environment) -> Result<Value, Error>
+fn reverse(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() != 1
     {
@@ -392,7 +424,7 @@ pub fn reverse(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::from(v))
 }
 
-pub fn display(args: &[Value], _: Environment) -> Result<Value, Error>
+fn display(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() == 2
     {
@@ -408,7 +440,7 @@ pub fn display(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::null())
 }
 
-pub fn newline(args: &[Value], _: Environment) -> Result<Value, Error>
+fn newline(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     if args.len() == 1
     {
@@ -424,7 +456,7 @@ pub fn newline(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::null())
 }
 
-pub fn load(args: &[Value], env: Environment) -> Result<Value, Error>
+fn load(args: &[Value], env: Environment) -> Result<Value, Error>
 {
     if args.len() != 1
     {
@@ -445,8 +477,8 @@ pub fn load(args: &[Value], env: Environment) -> Result<Value, Error>
 
     let tokens = crate::tokenizer::tokenize(&src)?;
     let roots = crate::parser::SyntaxTreeNode::parse(tokens)?;
-    let e = eval::Evaluator::new(roots);
-    e.eval()?;
+    let e = eval::Evaluator::new();
+    e.eval(roots)?;
     env.merge(e.env());
     Ok(Value::null())
 }

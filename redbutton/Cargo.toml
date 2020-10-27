@@ -1,17 +1,10 @@
 [package]
-name = "scheme"
+name = "redbutton"
 version = "0.1.0"
 authors = ["MetroWind <chris.corsair@gmail.com>"]
 edition = "2018"
 
-[lib]
-name = "scheme"
-path = "src/lib.rs"
-
-[[bin]]
-name = "metro-scheme"
-path = "src/main.rs"
-
 [dependencies]
 shared = { path = "../shared" }
+scheme = { path = "../scheme" }
 clap = ">=2.33"

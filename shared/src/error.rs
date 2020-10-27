@@ -12,6 +12,17 @@ macro_rules! error
     };
 }
 
+// Construct a RuntimeError
+#[macro_export]
+macro_rules! rterr
+{
+    ($msg:literal) => { error!(RuntimeError, $msg) };
+    ($msg:literal $(, $x:expr)+) =>
+    {
+        error!(RuntimeError, format!($msg $(, $x)+))
+    };
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Error
 {

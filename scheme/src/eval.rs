@@ -9,27 +9,16 @@ use crate::builtin;
 
 pub struct Evaluator
 {
-    code: Vec<SyntaxTreeNode>,
     env: Environment,
-}
-
-// Construct a RuntimeError
-macro_rules! rterr
-{
-    ($msg:literal) => { error!(RuntimeError, $msg) };
-    ($msg:literal $(, $x:expr)+) =>
-    {
-        error!(RuntimeError, format!($msg $(, $x)+))
-    };
 }
 
 pub type EvalResult = Result<Value, Error>;
 
 impl Evaluator
 {
-    pub fn new(code: Vec<SyntaxTreeNode>) -> Self
+    pub fn new() -> Self
     {
-        Self{ code: code, env: builtin::getBuiltinEnv() }
+        Self{ env: builtin::getBuiltinEnv() }
     }
 
     pub fn env(&self) -> Environment
@@ -494,9 +483,9 @@ impl Evaluator
         }
     }
 
-    pub fn eval(&self) -> EvalResult
+    pub fn eval(&self, code: Vec<SyntaxTreeNode>) -> EvalResult
     {
-        let mut result = self.evalEach(self.env.clone(), &self.code)?;
+        let mut result = self.evalEach(self.env.clone(), &code)?;
         if result.is_empty()
         {
             Ok(Value::null())
@@ -507,11 +496,11 @@ impl Evaluator
         }
     }
 
-    pub fn evalSource(src: &str) -> EvalResult
+    pub fn evalSource(&self, src: &str) -> EvalResult
     {
         let tokens = crate::tokenizer::tokenize(src)?;
         let roots = SyntaxTreeNode::parse(tokens)?;
-        Self::new(roots).eval()
+        self.eval(roots)
     }
 
 }
@@ -520,6 +509,17 @@ impl Evaluator
 mod tests
 {
     use super::*;
+
+    impl Evaluator
+    {
+        pub fn justEvalSource(src: &str) -> EvalResult
+        {
+            let tokens = crate::tokenizer::tokenize(src)?;
+            let roots = SyntaxTreeNode::parse(tokens)?;
+            Self::new().eval(roots)
+        }
+
+    }
 
     fn floatEq(lhs: Value, rhs: Value, delta: f64) -> bool
     {
@@ -560,13 +560,13 @@ mod tests
     #[test]
     fn plus() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(+ 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(+ 1 2)"#)?;
         assert_eq!(result, Value::Integer(3));
-        let result = Evaluator::evalSource(r#"(+ 1.6 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(+ 1.6 2)"#)?;
         assert_float_eq(result, 3.6);
-        let result = Evaluator::evalSource(r#"(+ 1 2.0)"#)?;
+        let result = Evaluator::justEvalSource(r#"(+ 1 2.0)"#)?;
         assert_float_eq(result, 3.0);
-        let result = Evaluator::evalSource(r#"(+ 1 (+ 2.5 1) 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(+ 1 (+ 2.5 1) 2)"#)?;
         assert_float_eq(result, 6.5);
         Ok(())
     }
@@ -574,13 +574,13 @@ mod tests
     #[test]
     fn minus() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(- 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(- 1 2)"#)?;
         assert_eq!(result, Value::Integer(-1));
-        let result = Evaluator::evalSource(r#"(- 1.6 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(- 1.6 2)"#)?;
         assert_float_eq(result, -0.4);
-        let result = Evaluator::evalSource(r#"(- 1 2.0)"#)?;
+        let result = Evaluator::justEvalSource(r#"(- 1 2.0)"#)?;
         assert_float_eq(result, -1.0);
-        let result = Evaluator::evalSource(r#"(- 1 (- 2.5 1) 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(- 1 (- 2.5 1) 2)"#)?;
         assert_float_eq(result, -2.5);
         Ok(())
     }
@@ -588,13 +588,13 @@ mod tests
     #[test]
     fn multiply() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(* 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(* 1 2)"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"(* 1.6 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(* 1.6 2)"#)?;
         assert_float_eq(result, 3.2);
-        let result = Evaluator::evalSource(r#"(* 1 2.0)"#)?;
+        let result = Evaluator::justEvalSource(r#"(* 1 2.0)"#)?;
         assert_float_eq(result, 2.0);
-        let result = Evaluator::evalSource(r#"(* 1 (* 2.5 1) 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(* 1 (* 2.5 1) 2)"#)?;
         assert_float_eq(result, 5.0);
         Ok(())
     }
@@ -602,15 +602,15 @@ mod tests
     #[test]
     fn divide() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(/ 2 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(/ 2 1)"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"(/ 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(/ 1 2)"#)?;
         assert_float_eq(result, 0.5);
-        let result = Evaluator::evalSource(r#"(/ 1.6 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(/ 1.6 2)"#)?;
         assert_float_eq(result, 0.8);
-        let result = Evaluator::evalSource(r#"(/ 1 2.0)"#)?;
+        let result = Evaluator::justEvalSource(r#"(/ 1 2.0)"#)?;
         assert_float_eq(result, 0.5);
-        let result = Evaluator::evalSource(r#"(/ 1 (/ 2.5 1) 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(/ 1 (/ 2.5 1) 2)"#)?;
         assert_float_eq(result, 1.0 / 2.5 / 2.0);
         Ok(())
     }
@@ -618,11 +618,11 @@ mod tests
     #[test]
     fn quote() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"'1"#)?;
+        let result = Evaluator::justEvalSource(r#"'1"#)?;
         assert_eq!(result, Value::Integer(1));
-        let result = Evaluator::evalSource(r#"'a"#)?;
+        let result = Evaluator::justEvalSource(r#"'a"#)?;
         assert_eq!(result, Value::Symbol(String::from("a")));
-        let result = Evaluator::evalSource(r#"'(a b)"#)?;
+        let result = Evaluator::justEvalSource(r#"'(a b)"#)?;
         if let Value::List(vs) = result
         {
             assert_eq!(vs.car(), Value::Symbol("a".to_owned()));
@@ -642,22 +642,22 @@ mod tests
     #[test]
     fn if_simple() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(if #t 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(if #t 1)"#)?;
         assert_eq!(result, Value::Integer(1));
-        let result = Evaluator::evalSource(r#"(if #f 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(if #f 1)"#)?;
         assert_eq!(result, Value::null());
-        let result = Evaluator::evalSource(r#"(if #f 1 0)"#)?;
+        let result = Evaluator::justEvalSource(r#"(if #f 1 0)"#)?;
         assert_eq!(result, Value::Integer(0));
-        let result = Evaluator::evalSource(r#"(if #f 1 2 3)"#)?;
+        let result = Evaluator::justEvalSource(r#"(if #f 1 2 3)"#)?;
         assert_eq!(result, Value::Integer(3));
-        assert!(Evaluator::evalSource(r#"(if 1 1 )"#).is_err());
+        assert!(Evaluator::justEvalSource(r#"(if 1 1 )"#).is_err());
         Ok(())
     }
 
     #[test]
     fn calculated_head() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"((if #f + *) 3 4)"#)?;
+        let result = Evaluator::justEvalSource(r#"((if #f + *) 3 4)"#)?;
         assert_eq!(result, Value::Integer(12));
         Ok(())
     }
@@ -665,17 +665,17 @@ mod tests
     #[test]
     fn cond() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(cond (#t 1) (#t 2))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cond (#t 1) (#t 2))"#)?;
         assert_eq!(result, Value::Integer(1));
-        let result = Evaluator::evalSource(r#"(cond (#f 1) (#t (+ 1 1)))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cond (#f 1) (#t (+ 1 1)))"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"(cond (#f 1) (#t 2 3))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cond (#f 1) (#t 2 3))"#)?;
         assert_eq!(result, Value::Integer(3));
-        let result = Evaluator::evalSource(r#"(cond (#f 1) (else 2 3))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cond (#f 1) (else 2 3))"#)?;
         assert_eq!(result, Value::Integer(3));
-        let result = Evaluator::evalSource(r#"(cond (else 2) (#t 1))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cond (else 2) (#t 1))"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"(cond (#f 1))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cond (#f 1))"#)?;
         assert_eq!(result, Value::null());
         Ok(())
     }
@@ -683,9 +683,9 @@ mod tests
     #[test]
     fn letstar() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(let* ((x 1)) (+ x 1))"#)?;
+        let result = Evaluator::justEvalSource(r#"(let* ((x 1)) (+ x 1))"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(
+        let result = Evaluator::justEvalSource(
             r#"(let* ((x 1) (y 2)) (+ x 1) (+ x y))"#)?;
         assert_eq!(result, Value::Integer(3));
         Ok(())
@@ -694,9 +694,9 @@ mod tests
     #[test]
     fn procedure() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"((lambda (x) (+ x 1)) 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"((lambda (x) (+ x 1)) 1)"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"((lambda (x) 0 (+ x 1)) 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"((lambda (x) 0 (+ x 1)) 1)"#)?;
         assert_eq!(result, Value::Integer(2));
         Ok(())
     }
@@ -704,9 +704,9 @@ mod tests
     #[test]
     fn begin() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(begin 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(begin 1 2)"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"(begin 1 (begin 3 4))"#)?;
+        let result = Evaluator::justEvalSource(r#"(begin 1 (begin 3 4))"#)?;
         assert_eq!(result, Value::Integer(4));
         Ok(())
     }
@@ -714,9 +714,9 @@ mod tests
     #[test]
     fn define_variable() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(define x 2) x"#)?;
+        let result = Evaluator::justEvalSource(r#"(define x 2) x"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"(define f (lambda (x) (+ x 1)))
+        let result = Evaluator::justEvalSource(r#"(define f (lambda (x) (+ x 1)))
 (f 1)"#)?;
         assert_eq!(result, Value::Integer(2));
         Ok(())
@@ -725,13 +725,13 @@ mod tests
     #[test]
     fn define_function() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(define (f x) (+ x 1)) (f 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(define (f x) (+ x 1)) (f 1)"#)?;
         assert_eq!(result, Value::Integer(2));
-        let result = Evaluator::evalSource(r#"(define (f x) (+ x 1))
+        let result = Evaluator::justEvalSource(r#"(define (f x) (+ x 1))
 (define (g x) (* (f x) 2))
 (g 1)"#)?;
         assert_eq!(result, Value::Integer(4));
-        let result = Evaluator::evalSource(r#"(define x 100)
+        let result = Evaluator::justEvalSource(r#"(define x 100)
 (define (f x) (+ x 1))
 (f 1)"#)?;
         assert_eq!(result, Value::Integer(2));
@@ -741,27 +741,27 @@ mod tests
     #[test]
     fn set() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(define x 2) (set! x 1) x"#)?;
+        let result = Evaluator::justEvalSource(r#"(define x 2) (set! x 1) x"#)?;
         assert_eq!(result, Value::Integer(1));
-        let result = Evaluator::evalSource(r#"(define x 2)
+        let result = Evaluator::justEvalSource(r#"(define x 2)
 (define (f y)
   (set! x y))
 (f 1) x"#)?;
         assert_eq!(result, Value::Integer(1));
-        assert!(Evaluator::evalSource(r#"(define x 2) (set! y 1)"#).is_err());
+        assert!(Evaluator::justEvalSource(r#"(define x 2) (set! y 1)"#).is_err());
         Ok(())
     }
 
     #[test]
     fn list_display() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"'(1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"'(1 2)"#)?;
         assert_eq!(format!("{}", result), "(1 2)");
-        let result = Evaluator::evalSource(r#"'((1 3) 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"'((1 3) 2)"#)?;
         assert_eq!(format!("{}", result), "((1 3) 2)");
-        let result = Evaluator::evalSource(r#"'((1 2) . 3)"#)?;
+        let result = Evaluator::justEvalSource(r#"'((1 2) . 3)"#)?;
         assert_eq!(format!("{}", result), "((1 2) . 3)");
-        let result = Evaluator::evalSource(r#"'((1 2) . ())"#)?;
+        let result = Evaluator::justEvalSource(r#"'((1 2) . ())"#)?;
         assert_eq!(format!("{}", result), "((1 2))");
         Ok(())
     }
@@ -769,11 +769,11 @@ mod tests
     #[test]
     fn car() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(car '(1))"#)?;
+        let result = Evaluator::justEvalSource(r#"(car '(1))"#)?;
         assert_eq!(result, Value::Integer(1));
-        let result = Evaluator::evalSource(r#"(car '((1)))"#)?;
+        let result = Evaluator::justEvalSource(r#"(car '((1)))"#)?;
         assert_eq!(format!("{}", result), "(1)");
-        let result = Evaluator::evalSource(r#"(car '(1) '(2))"#);
+        let result = Evaluator::justEvalSource(r#"(car '(1) '(2))"#);
         assert!(result.is_err());
         Ok(())
     }
@@ -781,11 +781,11 @@ mod tests
     #[test]
     fn cdr() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(cdr '(1))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cdr '(1))"#)?;
         assert_eq!(result, Value::null());
-        let result = Evaluator::evalSource(r#"(cdr '(() (1)))"#)?;
+        let result = Evaluator::justEvalSource(r#"(cdr '(() (1)))"#)?;
         assert_eq!(format!("{}", result), "((1))");
-        let result = Evaluator::evalSource(r#"(cdr '(1) '(2))"#);
+        let result = Evaluator::justEvalSource(r#"(cdr '(1) '(2))"#);
         assert!(result.is_err());
         Ok(())
     }
@@ -793,13 +793,13 @@ mod tests
     #[test]
     fn and() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(and 1 2 'c '(f g))"#)?;
+        let result = Evaluator::justEvalSource(r#"(and 1 2 'c '(f g))"#)?;
         assert_eq!(result.to_string(), "(f g)");
-        let result = Evaluator::evalSource(r#"(and)"#)?;
+        let result = Evaluator::justEvalSource(r#"(and)"#)?;
         assert_eq!(result, Value::Bool(true));
 
         // (if) is not evaluated.
-        let result = Evaluator::evalSource(r#"(and #f (if))"#)?;
+        let result = Evaluator::justEvalSource(r#"(and #f (if))"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -807,9 +807,9 @@ mod tests
     #[test]
     fn or() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(or 1 (if))"#)?;
+        let result = Evaluator::justEvalSource(r#"(or 1 (if))"#)?;
         assert_eq!(result, Value::Integer(1));
-        let result = Evaluator::evalSource(r#"(or)"#)?;
+        let result = Evaluator::justEvalSource(r#"(or)"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -817,13 +817,13 @@ mod tests
     #[test]
     fn not() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(not #t)"#)?;
+        let result = Evaluator::justEvalSource(r#"(not #t)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::evalSource(r#"(not 3)"#)?;
+        let result = Evaluator::justEvalSource(r#"(not 3)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::evalSource(r#"(not #f)"#)?;
+        let result = Evaluator::justEvalSource(r#"(not #f)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(not '())"#)?;
+        let result = Evaluator::justEvalSource(r#"(not '())"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -831,13 +831,13 @@ mod tests
     #[test]
     fn num_equal() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(= 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(= 1 1)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(= 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(= 1 2)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::evalSource(r#"(= 1 1 1 1.0 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(= 1 1 1 1.0 1 1)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(= 1 1 2 1 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(= 1 1 2 1 1 1)"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -845,13 +845,13 @@ mod tests
     #[test]
     fn num_less_than() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(< 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(< 1 1)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::evalSource(r#"(< 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(< 1 2)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(< 1 1.01 1.02 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(< 1 1.01 1.02 2)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(< 1 1.0 1.01)"#)?;
+        let result = Evaluator::justEvalSource(r#"(< 1 1.0 1.01)"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -859,13 +859,13 @@ mod tests
     #[test]
     fn num_less_or_equal() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(<= 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(<= 1 1)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(<= 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(<= 1 2)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(<= 1 0.99)"#)?;
+        let result = Evaluator::justEvalSource(r#"(<= 1 0.99)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::evalSource(r#"(<= 1 1.0 1.01)"#)?;
+        let result = Evaluator::justEvalSource(r#"(<= 1 1.0 1.01)"#)?;
         assert_eq!(result, Value::Bool(true));
         Ok(())
     }
@@ -873,13 +873,13 @@ mod tests
     #[test]
     fn num_greater_than() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(> 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(> 1 1)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::evalSource(r#"(> 2 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(> 2 1)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(> 2 1.02 1.01 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(> 2 1.02 1.01 1)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(> 1.01 1.0 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(> 1.01 1.0 1)"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -887,13 +887,13 @@ mod tests
     #[test]
     fn num_greater_or_equal() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(>= 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(>= 1 1)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(>= 2 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(>= 2 1)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(>= 0.99 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(>= 0.99 1)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::evalSource(r#"(>= 1.01 1.0 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(>= 1.01 1.0 1)"#)?;
         assert_eq!(result, Value::Bool(true));
         Ok(())
     }
@@ -901,9 +901,9 @@ mod tests
     #[test]
     fn nullp() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(null? '())"#)?;
+        let result = Evaluator::justEvalSource(r#"(null? '())"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::evalSource(r#"(null? 0)"#)?;
+        let result = Evaluator::justEvalSource(r#"(null? 0)"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -911,9 +911,9 @@ mod tests
     #[test]
     fn cons() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(cons 'a 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(cons 'a 2)"#)?;
         assert_eq!(result.to_string(), "(a . 2)");
-        let result = Evaluator::evalSource(r#"(cons 'a '())"#)?;
+        let result = Evaluator::justEvalSource(r#"(cons 'a '())"#)?;
         assert_eq!(result.to_string(), "(a)");
         Ok(())
     }
@@ -921,11 +921,11 @@ mod tests
     #[test]
     fn list() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(list 'a 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(list 'a 2)"#)?;
         assert_eq!(result.to_string(), "(a 2)");
-        let result = Evaluator::evalSource(r#"(list 'a '())"#)?;
+        let result = Evaluator::justEvalSource(r#"(list 'a '())"#)?;
         assert_eq!(result.to_string(), "(a ())");
-        let result = Evaluator::evalSource(r#"(list)"#)?;
+        let result = Evaluator::justEvalSource(r#"(list)"#)?;
         assert_eq!(result.to_string(), "()");
         Ok(())
     }
@@ -933,17 +933,17 @@ mod tests
     #[test]
     fn append() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(append '(x) '(y))"#)?;
+        let result = Evaluator::justEvalSource(r#"(append '(x) '(y))"#)?;
         assert_eq!(result.to_string(), "(x y)");
-        let result = Evaluator::evalSource(r#"(append '())"#)?;
+        let result = Evaluator::justEvalSource(r#"(append '())"#)?;
         assert_eq!(result.to_string(), "()");
-        let result = Evaluator::evalSource(r#"(append '(a) '(b c d))"#)?;
+        let result = Evaluator::justEvalSource(r#"(append '(a) '(b c d))"#)?;
         assert_eq!(result.to_string(), "(a b c d)");
-        let result = Evaluator::evalSource(r#"(append '(a (b)) '((c)))"#)?;
+        let result = Evaluator::justEvalSource(r#"(append '(a (b)) '((c)))"#)?;
         assert_eq!(result.to_string(), "(a (b) (c))");
-        let result = Evaluator::evalSource(r#"(append '(a b) '(c . d))"#)?;
+        let result = Evaluator::justEvalSource(r#"(append '(a b) '(c . d))"#)?;
         assert_eq!(result.to_string(), "(a b c . d)");
-        let result = Evaluator::evalSource(r#"(append '() 'a)"#)?;
+        let result = Evaluator::justEvalSource(r#"(append '() 'a)"#)?;
         assert_eq!(result.to_string(), "a");
         Ok(())
     }
@@ -951,11 +951,11 @@ mod tests
     #[test]
     fn reverse() -> Result<(), Error>
     {
-        let result = Evaluator::evalSource(r#"(reverse '(a b c))"#)?;
+        let result = Evaluator::justEvalSource(r#"(reverse '(a b c))"#)?;
         assert_eq!(result.to_string(), "(c b a)");
-        let result = Evaluator::evalSource(r#"(reverse '())"#)?;
+        let result = Evaluator::justEvalSource(r#"(reverse '())"#)?;
         assert_eq!(result.to_string(), "()");
-        let result = Evaluator::evalSource(r#"(reverse '(a (b c) d (e (f))))"#)?;
+        let result = Evaluator::justEvalSource(r#"(reverse '(a (b c) d (e (f))))"#)?;
         assert_eq!(result.to_string(), "((e (f)) d (b c) a)");
         Ok(())
     }
