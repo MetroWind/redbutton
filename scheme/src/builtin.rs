@@ -18,11 +18,12 @@ pub fn registerBuiltin(env: &Environment, name: &str,
 #[macro_export]
 macro_rules! builtin_args_check
 {
-    ($name: literal, $args:ident = $count: literal) =>
+    ($name: literal, $args:ident $op:tt $count: literal) =>
     {
-        if $args.len() != $count
+        if !($args.len() $op $count)
         {
-            return Err(rterr!("{} expects {} argument(s)", $name, $count));
+            return Err(rterr!("{} expects number of argument(s) {} {}",
+                              $name, stringify!($op), $count));
         }
     };
 }
@@ -218,23 +219,18 @@ fn not(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::Bool(!args[0].toBool()))
 }
 
-fn numEqual(args: &[Value], _: Environment) -> Result<Value, Error>
+fn equal2(args: &[Value], _: Environment) -> Result<Value, Error>
 {
-    if args.len() < 2
-    {
-        return Err(rterr!("= expects >1 arguments"));
-    }
+    builtin_args_check!("Equal2", args == 2);
 
-    let num = &args[0];
-    for arg in &args[1..]
+    let result = match args[0]
     {
-        if !num.numericalEq(arg)
-        {
-            return Ok(Value::Bool(false));
-        }
-    }
+        Value::Integer(_) => args[0].numericalEq(&args[1]),
+        Value::Float(_) => args[0].numericalEq(&args[1]),
+        _ => args[0] == args[1],
+    };
 
-    Ok(Value::Bool(true))
+    Ok(Value::Bool(result))
 }
 
 fn numLessThan(args: &[Value], _: Environment) -> Result<Value, Error>
@@ -436,7 +432,7 @@ fn display(args: &[Value], _: Environment) -> Result<Value, Error>
         return Err(rterr!("Display expects 1 argument"));
     }
 
-    print!("{}", args[0]);
+    print!("{}", args[0].printStr()?);
     Ok(Value::null())
 }
 
@@ -483,6 +479,67 @@ fn load(args: &[Value], env: Environment) -> Result<Value, Error>
     Ok(Value::null())
 }
 
+fn quotient(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("quotient", args == 2);
+    let lhs = builtin_define_arg!("quotient", args[0]: Integer);
+    let rhs = builtin_define_arg!("quotient", args[1]: Integer);
+
+    Ok(Value::Integer(lhs / rhs))
+}
+
+fn remainder(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("remainder", args == 2);
+    let lhs = builtin_define_arg!("remainder", args[0]: Integer);
+    let rhs = builtin_define_arg!("remainder", args[1]: Integer);
+
+    Ok(Value::Integer(lhs % rhs))
+}
+
+fn toString(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("->string", args == 1);
+    Ok(Value::String(args[0].to_string()))
+}
+
+fn strLen(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("String-length", args == 1);
+    let s = builtin_define_arg!("String-length", args[0]: String);
+    Ok(Value::Integer(s.chars().count() as i64))
+}
+
+fn substring(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("Substring", args == 3);
+    let s = builtin_define_arg!("Substring", args[0]: String);
+    let begin = builtin_define_arg!("Substring", args[1]: Integer) as usize;
+    let end = builtin_define_arg!("Substring", args[2]: Integer) as usize;
+
+    Ok(Value::String(String::from(&s[begin..end])))
+}
+
+fn stringAppend(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("String-append", args >= 1);
+    let mut s = builtin_define_arg!("String-append", args[0]: String).to_owned();
+
+    for arg in &args[1..]
+    {
+        if let Value::String(ss) = arg
+        {
+            s = s + ss;
+        }
+        else
+        {
+            return Err(rterr!("String-append expects strings"));
+        }
+    }
+
+    Ok(Value::String(s))
+}
+
 pub fn getBuiltinEnv() -> Environment
 {
     let result = Environment::new();
@@ -493,7 +550,7 @@ pub fn getBuiltinEnv() -> Environment
     registerBuiltin(&result, "car", car);
     registerBuiltin(&result, "cdr", cdr);
     registerBuiltin(&result, "not", not);
-    registerBuiltin(&result, "=", numEqual);
+    registerBuiltin(&result, "equal2", equal2);
     registerBuiltin(&result, "<", numLessThan);
     registerBuiltin(&result, "<=", numLessOrEq);
     registerBuiltin(&result, ">", numGreaterThan);
@@ -506,5 +563,11 @@ pub fn getBuiltinEnv() -> Environment
     registerBuiltin(&result, "display", display);
     registerBuiltin(&result, "newline", newline);
     registerBuiltin(&result, "load", load);
+    registerBuiltin(&result, "quotient", quotient);
+    registerBuiltin(&result, "remainder", remainder);
+    registerBuiltin(&result, "->string", toString);
+    registerBuiltin(&result, "string-length", strLen);
+    registerBuiltin(&result, "substring", substring);
+    registerBuiltin(&result, "string-append", stringAppend);
     result
 }

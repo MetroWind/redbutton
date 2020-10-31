@@ -4,7 +4,7 @@ use shared::error::Error;
 use crate::tokenizer::{Token, TokenValue};
 use crate::parser::SyntaxTreeNode;
 use crate::environment::Environment;
-use crate::value::{Value, Procedure, Cons};
+use crate::value::{Value, Procedure, Cons, ProcedureArguments};
 use crate::builtin;
 
 pub struct Evaluator
@@ -215,22 +215,13 @@ impl Evaluator
     fn evalLambda(&self, env: Environment, formals: &SyntaxTreeNode,
                   body: &[SyntaxTreeNode]) -> EvalResult
     {
-        let arg_nodes = formals.getNodes().ok_or_else(
-            || rterr!("Arguments in lambda should be a list"))?;
-        let mut args = Vec::new();
-        for node in arg_nodes
-        {
-            args.push(node.getIdentifier().ok_or_else(
-                || rterr!("Arguments in lambda should be identifiers"))?
-                      .to_owned());
-        }
-
         let mut new_body = Vec::new();
         for node in body
         {
             new_body.push(node.clone());
         }
-        Ok(Value::Procedure(Procedure::fromArgsBody(env, args, new_body)))
+        Ok(Value::Procedure(Procedure::fromArgsBody(
+            env, ProcedureArguments::fromLambdaFormal(formals)?, new_body)))
     }
 
     fn evalBegin(&self, env: Environment, body: &[SyntaxTreeNode]) ->
@@ -256,19 +247,13 @@ impl Evaluator
 
         let name = sig[0].getIdentifier().ok_or_else(
             || rterr!("Define: function name should be an identifier"))?;
-        let mut args = Vec::new();
-        for arg in &sig[1..]
-        {
-            let arg_name = arg.getIdentifier().ok_or_else(
-                || rterr!("Define: function argument should be an indentifier"))?;
-            args.push(arg_name.to_owned());
-        }
         let mut body_form = Vec::new();
         for expr in body
         {
             body_form.push(expr.clone());
         }
-        let mut f = Procedure::fromArgsBody(env.clone(), args, body_form);
+        let mut f = Procedure::fromArgsBody(
+            env.clone(), ProcedureArguments::fromDefineSig(sig)?, body_form);
         f.name = Some(name.to_owned());
         let value = Value::Procedure(f);
         env.define(name, value);
@@ -381,10 +366,38 @@ impl Evaluator
         Ok(result)
     }
 
+    fn evalApply(&self, env: Environment, proc: &SyntaxTreeNode,
+                 args: &[SyntaxTreeNode]) -> EvalResult
+    {
+        if args.len() != 1
+        {
+            return Err(rterr!("Invalid apply arguments"));
+        }
+
+        let func = self.evalNode(env.clone(), proc)?;
+        let args_or_null = self.evalNode(env.clone(), &args[0])?;
+        let true_args: Vec<Value> = if args_or_null == Value::null()
+        {
+            Vec::new()
+        }
+        else
+        {
+            args_or_null.list2Vec()
+                .ok_or_else(|| rterr!("Invalid apply arguments"))?
+        };
+
+        match func
+        {
+            Value::Builtin(f) => f.call(&true_args, env),
+            Value::Procedure(f) => self.evalProcedureCall(env, &f, true_args),
+            _ => Err(rterr!("Calling a non-procedure {}", func)),
+        }
+    }
+
     fn evalNamedCompound(&self, env: Environment, name: &str,
                          rest: &[SyntaxTreeNode]) -> EvalResult
     {
-        // Specials
+        // Special forms
         match name
         {
             "if" => return self.evalIf(env, &rest[0], &rest[1], &rest[2..]),
@@ -396,6 +409,7 @@ impl Evaluator
             "set!" => return self.evalSet(env, &rest[0], &rest[1..]),
             "and" => return self.evalAnd(env, rest),
             "or" => return self.evalOr(env, rest),
+            "apply" => return self.evalApply(env, &rest[0], &rest[1..]),
             _ => {},
         }
 
@@ -411,24 +425,14 @@ impl Evaluator
     }
 
     fn evalProcedureCall(&self, env: Environment, f: &Procedure,
-                         mut args: Vec<Value>) -> EvalResult
+                         args: Vec<Value>) -> EvalResult
     {
-        let arg_names = f.arguments();
-        if args.len() != arg_names.len()
-        {
-            return Err(rterr!(
-                "Wrong number of arguments for procedure {}. Expect {}, got {}.",
-                f, arg_names.len(), args.len()));
-        }
+        let env = env.derive();
+        env.matchArgs(f, args)?;
+
         if f.empty()
         {
             return Ok(Value::null());
-        }
-
-        let env = env.derive();
-        for i in (0..args.len()).rev()
-        {
-            env.define(&arg_names[i], args.pop().unwrap());
         }
         Ok(self.evalEach(env, f.body())?.pop().unwrap())
     }
@@ -441,7 +445,7 @@ impl Evaluator
         {
             Value::Builtin(f) => f.call(&args, env),
             Value::Procedure(f) => self.evalProcedureCall(env, &f, args),
-            _ => Err(rterr!("Calling a non-procedure")),
+            _ => Err(rterr!("Calling a non-procedure {}", head)),
         }
     }
 
@@ -503,23 +507,18 @@ impl Evaluator
         self.eval(roots)
     }
 
+    pub fn justEvalSource(src: &str) -> EvalResult
+    {
+        let tokens = crate::tokenizer::tokenize(src)?;
+        let roots = SyntaxTreeNode::parse(tokens)?;
+        Self::new().eval(roots)
+    }
 }
 
 #[cfg(test)]
 mod tests
 {
     use super::*;
-
-    impl Evaluator
-    {
-        pub fn justEvalSource(src: &str) -> EvalResult
-        {
-            let tokens = crate::tokenizer::tokenize(src)?;
-            let roots = SyntaxTreeNode::parse(tokens)?;
-            Self::new().eval(roots)
-        }
-
-    }
 
     fn floatEq(lhs: Value, rhs: Value, delta: f64) -> bool
     {
@@ -702,6 +701,22 @@ mod tests
     }
 
     #[test]
+    fn lambda_alt() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"((lambda x x) 1 2)"#)?;
+        assert_eq!(result.to_string(), "(1 2)");
+        let result = Evaluator::justEvalSource(r#"((lambda x x))"#)?;
+        assert_eq!(result, Value::null());
+        let result = Evaluator::justEvalSource(
+            r#"((lambda (x y . z) z) 3 4 5 6)"#)?;
+        assert_eq!(result.to_string(), "(5 6)");
+        let result = Evaluator::justEvalSource(
+            r#"((lambda (x y . z) z) 3 4)"#)?;
+        assert_eq!(result, Value::null());
+        Ok(())
+    }
+
+    #[test]
     fn begin() -> Result<(), Error>
     {
         let result = Evaluator::justEvalSource(r#"(begin 1 2)"#)?;
@@ -735,6 +750,19 @@ mod tests
 (define (f x) (+ x 1))
 (f 1)"#)?;
         assert_eq!(result, Value::Integer(2));
+        Ok(())
+    }
+
+    #[test]
+    fn define_function_alt() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"(define (f . x) x) (f 1)"#)?;
+        assert_eq!(result.to_string(), "(1)");
+        let result = Evaluator::justEvalSource(r#"(define (f . x) x) (f)"#)?;
+        assert_eq!(result, Value::null());
+        let result = Evaluator::justEvalSource(
+            r#"(define (f x . y) (+ x (car (cdr y)))) (f 1 2 3)"#)?;
+        assert_eq!(result, Value::Integer(4));
         Ok(())
     }
 
@@ -829,15 +857,15 @@ mod tests
     }
 
     #[test]
-    fn num_equal() -> Result<(), Error>
+    fn equal() -> Result<(), Error>
     {
-        let result = Evaluator::justEvalSource(r#"(= 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(equal2 1 1.0)"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::justEvalSource(r#"(= 1 2)"#)?;
+        let result = Evaluator::justEvalSource(r#"(equal2 1 2)"#)?;
         assert_eq!(result, Value::Bool(false));
-        let result = Evaluator::justEvalSource(r#"(= 1 1 1 1.0 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(equal2 "aaa" "aaa")"#)?;
         assert_eq!(result, Value::Bool(true));
-        let result = Evaluator::justEvalSource(r#"(= 1 1 2 1 1 1)"#)?;
+        let result = Evaluator::justEvalSource(r#"(equal2 "aaa" 'aaa)"#)?;
         assert_eq!(result, Value::Bool(false));
         Ok(())
     }
@@ -957,6 +985,66 @@ mod tests
         assert_eq!(result.to_string(), "()");
         let result = Evaluator::justEvalSource(r#"(reverse '(a (b c) d (e (f))))"#)?;
         assert_eq!(result.to_string(), "((e (f)) d (b c) a)");
+        Ok(())
+    }
+
+    #[test]
+    fn quotient() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"(quotient 13 4)"#)?;
+        assert_eq!(result, Value::Integer(3));
+        Ok(())
+    }
+
+    #[test]
+    fn remainder() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"(remainder 13 4)"#)?;
+        assert_eq!(result, Value::Integer(1));
+        let result = Evaluator::justEvalSource(r#"(remainder -13 4)"#)?;
+        assert_eq!(result, Value::Integer(-1));
+        Ok(())
+    }
+
+    #[test]
+    fn string_length() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"(string-length "abc")"#)?;
+        assert_eq!(result, Value::Integer(3));
+        let result = Evaluator::justEvalSource(r#"(string-length "测试")"#)?;
+        assert_eq!(result, Value::Integer(2));
+        Ok(())
+    }
+
+    #[test]
+    fn substring() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"(substring "abcdef" 2 4)"#)?;
+        assert_eq!(result, Value::String("cd".to_owned()));
+        let result = Evaluator::justEvalSource(r#"(substring "abcdef" 2 2)"#)?;
+        assert_eq!(result, Value::String(String::new()));
+        Ok(())
+    }
+
+    #[test]
+    fn string_append() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"(string-append "a")"#)?;
+        assert_eq!(result, Value::String("a".to_owned()));
+        let result = Evaluator::justEvalSource(r#"(string-append "a" "b")"#)?;
+        assert_eq!(result, Value::String("ab".to_owned()));
+        let result = Evaluator::justEvalSource(r#"(string-append "a" "b" "c")"#)?;
+        assert_eq!(result, Value::String("abc".to_owned()));
+        Ok(())
+    }
+
+    #[test]
+    fn apply() -> Result<(), Error>
+    {
+        let result = Evaluator::justEvalSource(r#"(apply + '(1 2 3))"#)?;
+        assert_eq!(result, Value::Integer(6));
+        let result = Evaluator::justEvalSource(r#"(define (f) 1) (apply f '())"#)?;
+        assert_eq!(result, Value::Integer(1));
         Ok(())
     }
 

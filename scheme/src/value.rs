@@ -2,28 +2,95 @@ use std::fmt;
 use std::rc::Rc;
 use std::cell::RefCell;
 
+use shared::error;
+use shared::error::Error;
+
 use crate::parser::SyntaxTreeNode;
 use crate::environment::Environment;
-use shared::error::Error;
+use crate::tokenizer::TokenValue;
+
+#[derive(Clone)]
+pub enum ProcedureArguments
+{
+    Fixed(Vec<String>),
+    Single(String),
+    HeadTail((Vec<String>, String)),
+}
+
+impl ProcedureArguments
+{
+    fn fromMultiNodes(nodes: &[SyntaxTreeNode], min_head_size: usize) ->
+        Result<Self, Error>
+    {
+        // (x . y)
+        if nodes.len() >= 2 + min_head_size
+        {
+            if nodes[nodes.len()-2].getTokenValue() == Some(&TokenValue::Dot)
+            {
+                let names: Result<Vec<&str>, Error> = nodes[..nodes.len()-2]
+                    .iter().map(|n| n.getIdentifier().ok_or_else(
+                        || rterr!("Invalid argument in lambda"))).collect();
+                let tail = nodes.last().unwrap().getIdentifier().ok_or_else(
+                    || rterr!("Invalid argument in lambda"))?;
+                let names = names?;
+                if names.is_empty()
+                {
+                    return Ok(Self::Single(tail.to_owned()));
+                }
+                else
+                {
+                    return Ok(Self::HeadTail(
+                        (names.iter().map(|s| (*s).to_owned()).collect(),
+                         tail.to_owned())));
+                }
+            }
+        }
+
+        // (x)
+        let names: Result<Vec<&str>, Error> = nodes.iter()
+            .map(|n| n.getIdentifier().ok_or_else(
+                || rterr!("Invalid argument in lambda"))).collect();
+        Ok(Self::Fixed(names?.iter().map(|s| (*s).to_owned()).collect()))
+    }
+
+    pub fn fromLambdaFormal(formal: &SyntaxTreeNode) -> Result<Self, Error>
+    {
+        // (lambda x ...)
+        if let Some(name) = formal.getIdentifier()
+        {
+            return Ok(Self::Single(name.to_owned()));
+        }
+
+        // (lambda (x y . z) ...)
+        let nodes = formal.getNodes().ok_or_else(
+            || rterr!("Invalid argument in lambda"))?;
+        Self::fromMultiNodes(nodes, 1)
+    }
+
+    pub fn fromDefineSig(sig: &[SyntaxTreeNode]) -> Result<Self, Error>
+    {
+        Self::fromMultiNodes(&sig[1..], 0)
+    }
+}
 
 #[derive(Clone)]
 pub struct Procedure
 {
     pub name: Option<String>,
     env: Environment,
-    arguments: Vec<String>,
+    arguments: ProcedureArguments,
     body: Vec<SyntaxTreeNode>,
 }
 
 impl Procedure
 {
-    pub fn fromArgsBody(env: Environment, args: Vec<String>,
+    pub fn fromArgsBody(env: Environment, args: ProcedureArguments,
                         body: Vec<SyntaxTreeNode>) -> Self
     {
         Self{ name: None, env: env, arguments: args, body: body }
     }
 
-    pub fn arguments(&self) -> &Vec<String>
+    pub fn arguments(&self) -> &ProcedureArguments
     {
         &self.arguments
     }
@@ -229,6 +296,25 @@ macro_rules! numericalCompare
 
 impl Value
 {
+    pub fn printStr(&self) -> Result<String, Error>
+    {
+        match self
+        {
+            Self::Integer(x) => Ok(x.to_string()),
+            Self::Float(x) => Ok(x.to_string()),
+            Self::Char(x) => Ok(format!("#\\{}", x)),
+            Self::String(x) => Ok(x.clone()),
+            Self::Bool(x) => if *x
+            { Ok(String::from("#t")) }
+            else
+            { Ok(String::from("#f")) },
+            Self::List(x) => Ok(x.to_string()),
+            Self::Symbol(x) => Ok(x.clone()),
+            Self::Null => Ok(String::new()),
+            _ => Err(rterr!("Invalid type to print")),
+        }
+    }
+
     pub const fn null() -> Self
     {
         Self::Null
@@ -307,6 +393,19 @@ impl Value
                 Some(result)
             },
             _ => None,
+        }
+    }
+
+    pub fn list2Vec(&self) -> Option<Vec<Value>>
+    {
+        if let Some(mut xs) = self.list2ReversedVec()
+        {
+            xs.reverse();
+            Some(xs)
+        }
+        else
+        {
+            None
         }
     }
 }

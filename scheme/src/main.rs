@@ -33,7 +33,7 @@ fn main() -> Result<(), Error>
 
     if matches.is_present("ListEnv")
     {
-        let e = user_utils::getEval(vec![])?;
+        let e = user_utils::getStdEval()?;
         let mut names = e.env().members();
         names.sort();
         for name in names

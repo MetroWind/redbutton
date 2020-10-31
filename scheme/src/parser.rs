@@ -41,13 +41,25 @@ impl SyntaxTreeNode
         }
     }
 
+    pub fn getTokenValue(&self) -> Option<&TokenValue>
+    {
+        if let Some(t) = self.getToken()
+        {
+            Some(t.value())
+        }
+        else
+        {
+            None
+        }
+    }
+
     /// Assume the node is an identifier. Return the identifier as a
     /// str.
     pub fn getIdentifier(&self) -> Option<&str>
     {
-        if let Some(t) = self.getToken()
+        if let Some(v) = self.getTokenValue()
         {
-            t.value().getIdentifier()
+            v.getIdentifier()
         }
         else
         {

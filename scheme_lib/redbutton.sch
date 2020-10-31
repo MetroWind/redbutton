@@ -1,0 +1,12 @@
+(define (path-join . segs)
+  (if (null? (cdr segs))
+      (car segs)
+      (path-join2 (car segs) (apply path-join (cdr segs)))))
+
+(define (walk-dir dir process)
+  (map (lambda (f)
+         (let* ((path (path-join dir f))
+                (type (file-type path)))
+           (cond ((= type 'file) (process (cons dir f)))
+                 ((= type 'dir) (walk-dir (path-join path) process)))))
+       (list-dir dir)))

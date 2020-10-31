@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::Path;
 
 use shared::error;
 use shared::error::Error;
@@ -6,9 +7,29 @@ use shared::error::Error;
 use crate::tokenizer::tokenize;
 use crate::parser::SyntaxTreeNode;
 use crate::eval::Evaluator;
-use crate::runtime_env::findStd;
 
-pub fn getEval(lib_files: Vec<&str>) -> Result<Evaluator, Error>
+use std::env;
+
+const LIB_DIR: &str = "scheme_lib";
+
+pub fn findLibDir() -> String
+{
+    if let Ok(path) = env::var("SCHEME_LIB_DIR")
+    {
+        path
+    }
+    else
+    {
+        LIB_DIR.to_owned()
+    }
+}
+
+pub fn findStd() -> String
+{
+    Path::new(&findLibDir()).join("std.sch").to_str().unwrap().to_owned()
+}
+
+pub fn getStdEval() -> Result<Evaluator, Error>
 {
     let eval = Evaluator::new();
     {
@@ -19,19 +40,25 @@ pub fn getEval(lib_files: Vec<&str>) -> Result<Evaluator, Error>
         let roots = SyntaxTreeNode::parse(tokens)?;
         eval.eval(roots)?;
     };
+    Ok(eval)
+}
 
+pub fn loadLibs(e: &Evaluator, lib_files: Vec<&str>) -> Result<(), Error>
+{
     for f in lib_files
     {
         let lib_src = fs::read_to_string(f)
             .map_err(|_| rterr!("Failed to load file {}", f))?;
-        eval.evalSource(&lib_src)?;
+        e.evalSource(&lib_src)?;
     }
-    Ok(eval)
+    Ok(())
 }
 
 pub fn runScheme(src: &str, lib_files: Vec<&str>) -> Result<(), Error>
 {
-    getEval(lib_files)?.evalSource(&src)?;
+    let e = getStdEval()?;
+    loadLibs(&e, lib_files)?;
+    e.evalSource(&src)?;
     Ok(())
 }
 

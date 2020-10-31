@@ -9,5 +9,4 @@ pub mod value;
 pub mod environment;
 pub mod eval;
 pub mod builtin;
-mod runtime_env;
 pub mod user_utils;

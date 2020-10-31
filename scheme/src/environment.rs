@@ -2,7 +2,10 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use crate::value::Value;
+use shared::error;
+use shared::error::Error;
+
+use crate::value::{Value, Procedure, ProcedureArguments};
 
 struct EnvironmentInner
 {
@@ -97,5 +100,68 @@ impl Environment
         {
             self.define(name, value.clone());
         }
+    }
+
+    pub fn matchArgs(&self, f: &Procedure, mut arg_values: Vec<Value>) ->
+        Result<(), Error>
+    {
+        match f.arguments()
+        {
+            ProcedureArguments::Fixed(names) =>
+            {
+                if names.len() != arg_values.len()
+                {
+                    return Err(rterr!("{} expects {} argument(s)",
+                                      f, names.len()));
+                }
+
+                let mut arg_drain = arg_values.drain(..);
+                for name in names
+                {
+                    self.define(name, arg_drain.next().unwrap());
+                }
+                Ok(())
+            },
+
+            ProcedureArguments::HeadTail((names, tail_name)) =>
+            {
+                if arg_values.len() < names.len()
+                {
+                    return Err(rterr!("{} expects at leasts {} arguments",
+                                      f, names.len()));
+                }
+
+                let mut arg_drain = arg_values.drain(..);
+                for name in names
+                {
+                    self.define(name, arg_drain.next().unwrap());
+                }
+
+                let rest: Vec<Value> = arg_drain.collect();
+                if rest.is_empty()
+                {
+                    self.define(&tail_name, Value::null());
+                }
+                else
+                {
+                    self.define(&tail_name, Value::from(rest));
+                }
+                Ok(())
+            },
+
+            ProcedureArguments::Single(name) =>
+            {
+                if arg_values.is_empty()
+                {
+                    self.define(&name, Value::null());
+                }
+                else
+                {
+                    self.define(&name, Value::from(arg_values));
+                }
+                Ok(())
+            },
+        }
+
     }
 }
