@@ -11,10 +11,15 @@ use scheme::environment::Environment;
 
 fn exists(args: &[Value], _: Environment) -> Result<Value, Error>
 {
-    builtin_args_check!("File-exists", args == 1);
-    let filename: &str = builtin_define_arg!("File-exists", args[0]: String);
+    builtin_args_check!("File-exists?", args == 1);
+    let filename: &str = builtin_define_arg!("File-exists?", args[0]: String);
 
-    Ok(Value::Bool(Path::new(filename).exists()))
+    if let Err(e) = fs::symlink_metadata(filename)
+    {
+        return Ok(Value::Bool(!(e.kind() == std::io::ErrorKind::NotFound)));
+    }
+
+    Ok(Value::Bool(true))
 }
 
 fn fileType(args: &[Value], _: Environment) -> Result<Value, Error>
@@ -22,7 +27,7 @@ fn fileType(args: &[Value], _: Environment) -> Result<Value, Error>
     builtin_args_check!("File-type", args == 1);
     let filename: &str = builtin_define_arg!("File-type", args[0]: String);
 
-    let meta = fs::metadata(filename).map_err(
+    let meta = fs::symlink_metadata(filename).map_err(
         |_| rterr!("Failed to get file type for {}", filename))?;
     let file_type = meta.file_type();
     if file_type.is_dir()
@@ -59,7 +64,7 @@ fn linkFile(args: &[Value], _: Environment) -> Result<Value, Error>
     let dest: &str = builtin_define_arg!("link-file", args[1]: String);
 
     std::os::unix::fs::symlink(src, dest).map_err(
-        |_| rterr!("Failed to link file {} --> {}", src, dest))?;
+        |e| rterr!("Failed to link file {} --> {}, {}", src, dest, e))?;
     Ok(Value::null())
 }
 
@@ -73,6 +78,20 @@ fn copyFile(args: &[Value], _: Environment) -> Result<Value, Error>
         |_| rterr!("Failed to copy file {} --> {}", src, dest))?;
     Ok(Value::null())
 }
+
+fn pathCanonicalize(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("Path-split-base", args == 1);
+    let path: &str = builtin_define_arg!("Path-split-base", args[0]: String);
+
+    let abs_path = fs::canonicalize(path)
+        .map_err(|_| rterr!("Invalid path: {}", path))?.to_str()
+        .ok_or_else(|| rterr!("Path-canonicalize failed due to non-utf8 path"))?
+        .to_owned();
+
+    Ok(Value::String(abs_path))
+}
+
 
 fn pathSplitBase(args: &[Value], _: Environment) -> Result<Value, Error>
 {
@@ -142,6 +161,15 @@ fn pathJoin2(args: &[Value], _: Environment) -> Result<Value, Error>
     Ok(Value::String(format!("{}{}{}", base, std::path::MAIN_SEPARATOR, file)))
 }
 
+fn removeFile(args: &[Value], _: Environment) -> Result<Value, Error>
+{
+    builtin_args_check!("File-remove", args == 1);
+    let file = builtin_define_arg!("File-remove", args[0]: String);
+    fs::remove_file(file).map_err(|e| rterr!("Failed to remove file: {}, {}",
+                                             file, e))?;
+    Ok(Value::null())
+}
+
 fn readFile(args: &[Value], _: Environment) -> Result<Value, Error>
 {
     builtin_args_check!("File-read", args == 1);
@@ -172,7 +200,7 @@ fn appendFile(args: &[Value], _: Environment) -> Result<Value, Error>
     let filename = builtin_define_arg!("File-append", args[0]: String);
     let data = builtin_define_arg!("File-append", args[1]: String);
 
-    let mut file = fs::OpenOptions::new().write(true).append(true)
+    let mut file = fs::OpenOptions::new().write(true).append(true).create(true)
         .open(filename).map_err(
         |e| rterr!("Failed to open file: {}, {}", filename, e))?;
     file.write_all(data.as_bytes()).map_err(
@@ -184,7 +212,7 @@ fn appendFile(args: &[Value], _: Environment) -> Result<Value, Error>
 pub fn getBuiltinEnv() -> Environment
 {
     let result = Environment::new();
-    registerBuiltin(&result, "file-exists", exists);
+    registerBuiltin(&result, "file-exists?", exists);
     // “/a/b/c” -> (“/a/b” . “c”)
     registerBuiltin(&result, "path-split-base", pathSplitBase);
     registerBuiltin(&result, "list-dir", listDir);
@@ -197,6 +225,8 @@ pub fn getBuiltinEnv() -> Environment
     registerBuiltin(&result, "link-file", linkFile);
     registerBuiltin(&result, "copy-file", copyFile);
     registerBuiltin(&result, "file-type", fileType);
+    registerBuiltin(&result, "file-remove", removeFile);
+    registerBuiltin(&result, "path-canonicalize", pathCanonicalize);
     result
 }
 

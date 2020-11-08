@@ -465,7 +465,7 @@ impl Evaluator
                         self.evalNamedCompound(env, name, &nodes[1..]),
                     TokenValue::Quote =>
                         self.evalQuote(&nodes[1]),
-                    _ => Err(rterr!("Unimplemented")),
+                    _ => Err(rterr!("Unimplemented: {}", token.src())),
                 }
             },
             SyntaxTreeNode::Compound(_) =>

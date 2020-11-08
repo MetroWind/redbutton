@@ -14,3 +14,15 @@
   (if (null? xs)
       '()
       (cons (f (car xs)) (map f (cdr xs)))))
+
+(define (for-each xs f)
+  (if (not (null? xs))
+      (begin
+        (f (car xs))
+        (for-each (cdr xs) f))))
+
+(define (list-tail xs n)
+  (if (<= n 0) xs (list-tail (cdr xs) (- n 1))))
+
+(define (length xs)
+  (if (null? xs) 0 (+ (length (cdr xs)) 1)))

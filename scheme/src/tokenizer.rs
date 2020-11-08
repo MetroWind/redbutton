@@ -376,7 +376,7 @@ fn tokenize0(src: &str) -> Result<Vec<RawToken>, Error>
                             "Invalid escape sequence: \\{}", c))); },
                     }
                 }
-                else
+                else if c != '\\'
                 {
                     if c == '"'
                     {

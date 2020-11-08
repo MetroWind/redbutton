@@ -33,7 +33,7 @@ fn format(args: &[Value], _: Environment) -> Result<Value, Error>
             return Err(rterr!("Invalid key in format"));
         };
 
-        template = template.apply(&key, cons.cdr());
+        template = template.apply(&key, cons.cdr().printStr()?);
     }
     Ok(Value::String(template.result()))
 }
