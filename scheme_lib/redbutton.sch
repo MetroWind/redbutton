@@ -51,3 +51,11 @@
               (file-append filename (format "%{key} = %{value}\n"
                                             (cons "key" (car kv))
                                             (cons "value" (cdr kv)))))))
+
+(define home-dir (get-env "HOME"))
+(define (home/ . dir)
+  (path-join (apply path-join (cons home-dir dir))))
+
+(define (format-file filename . pairs)
+  (let* ((content (file-read filename)))
+    (file-write filename (apply format (cons content pairs)))))

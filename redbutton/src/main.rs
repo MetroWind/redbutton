@@ -23,7 +23,7 @@ use shared::error::Error;
 use scheme::eval::Evaluator;
 use scheme::user_utils;
 
-const CONF_SCRIPT_NAME: &str = "redbutton-conf.sch";
+const CONF_SCRIPT_NAME: &str = "redbutton.sch";
 const USER_CONF_NAME: &str = "redbutton.sch";
 
 fn readStdin() -> Result<String, Error>
