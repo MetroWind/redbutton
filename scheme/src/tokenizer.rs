@@ -552,7 +552,7 @@ mod tests
                    vec![RT!("(", ParenLeft),
                         RT!("+", Stuff),
                         RT!("abc", String),
-                        RT!("d\\\nf", String),
+                        RT!("d\nf", String),
                         RT!(")", ParenRight),
                    ]);
         Ok(())

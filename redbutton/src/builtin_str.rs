@@ -63,12 +63,15 @@ mod tests
     {
         let result = getEval().evalSource(
             r#"(format "It's a %{test}~" (cons "test" (list)))"#)?;
-        assert_eq!(result, Value::String("It's a ()~".to_owned()));
+        assert_eq!(result, Value::String("It's a ~".to_owned()));
+        let result = getEval().evalSource(
+            r#"(format "It's a %{test}~" (cons "test" (list 1 2)))"#)?;
+        assert_eq!(result, Value::String("It's a (1 2)~".to_owned()));
         let result = getEval().evalSource(
             r#"(format "It's %{another} %{test}~"
-(cons "test" (list))
+(cons "test" (list 1))
 '("another" . 222))"#)?;
-        assert_eq!(result, Value::String("It's 222 ()~".to_owned()));
+        assert_eq!(result, Value::String("It's 222 (1)~".to_owned()));
         Ok(())
     }
 

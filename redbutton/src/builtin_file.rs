@@ -248,8 +248,10 @@ mod tests
     {
         // This can actually fail quite easily. So don’t be blocked on
         // it if this fails.
-        let exe = std::env::current_exe().map_err(|_| rterr!("Failed to get $0"))?;
-        let result = getEval().evalSource(&format!(r#"(file-exists {:?})"#, exe))?;
+        let exe = std::env::current_exe()
+            .map_err(|_| rterr!("Failed to get $0"))?;
+        let result = getEval().evalSource(
+            &format!(r#"(file-exists? {:?})"#, exe))?;
         assert_eq!(result, Value::Bool(true));
         Ok(())
     }
