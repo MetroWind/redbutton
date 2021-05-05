@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 
 #[macro_use]
 extern crate shared;
-
 #[macro_use]
 extern crate scheme;
+extern crate meta;
 
 mod builtin_file;
 mod builtin_str;
@@ -34,22 +34,15 @@ fn readStdin() -> Result<String, Error>
     Ok(buffer)
 }
 
-fn getLib() -> String
-{
-    Path::new(&user_utils::findLibDir()).join(USER_CONF_NAME).to_str().unwrap()
-        .to_owned()
-}
-
 fn getEval(extra_libs: &[&str]) -> Result<Evaluator, Error>
 {
-    let e = user_utils::getStdEval()?;
+    let e = Evaluator::new();
+    e.evalSource(meta::libstd!())?;
     e.env().merge(builtin_sys::getBuiltinEnv());
     e.env().merge(builtin_str::getBuiltinEnv());
     e.env().merge(builtin_file::getBuiltinEnv());
-    let lib_rb = getLib();
-    let mut libs: Vec<&str> = vec![&lib_rb];
-    libs.extend(extra_libs.iter());
-    user_utils::loadLibs(&e, libs)?;
+    e.evalSource(meta::librb!())?;
+    user_utils::loadLibs(&e, extra_libs)?;
     Ok(e)
 }
 

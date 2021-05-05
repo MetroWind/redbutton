@@ -5,6 +5,15 @@ authors = ["MetroWind <chris.corsair@gmail.com>"]
 edition = "2018"
 default-run = "redbutton"
 
+[lib]
+name = "meta"
+proc-macro = true
+path = "src/meta.rs"
+
+[[bin]]
+name = "redbutton"
+path = "src/main.rs"
+
 [dependencies]
 shared = { path = "../shared" }
 scheme = { path = "../scheme" }

@@ -45,11 +45,11 @@ fn main() -> Result<(), Error>
 
     if let Some(filename) = matches.value_of("FILE")
     {
-        user_utils::runSchemeFile(filename, vec![])
+        user_utils::runSchemeFile(filename, &vec![])
     }
     else
     {
         let src = readStdin()?;
-        user_utils::runScheme(&src, vec![])
+        user_utils::runScheme(&src, &vec![])
     }
 }

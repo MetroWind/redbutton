@@ -43,7 +43,7 @@ pub fn getStdEval() -> Result<Evaluator, Error>
     Ok(eval)
 }
 
-pub fn loadLibs(e: &Evaluator, lib_files: Vec<&str>) -> Result<(), Error>
+pub fn loadLibs(e: &Evaluator, lib_files: &[&str]) -> Result<(), Error>
 {
     for f in lib_files
     {
@@ -54,7 +54,7 @@ pub fn loadLibs(e: &Evaluator, lib_files: Vec<&str>) -> Result<(), Error>
     Ok(())
 }
 
-pub fn runScheme(src: &str, lib_files: Vec<&str>) -> Result<(), Error>
+pub fn runScheme(src: &str, lib_files: &[&str]) -> Result<(), Error>
 {
     let e = getStdEval()?;
     loadLibs(&e, lib_files)?;
@@ -62,7 +62,7 @@ pub fn runScheme(src: &str, lib_files: Vec<&str>) -> Result<(), Error>
     Ok(())
 }
 
-pub fn runSchemeFile(filename: &str, lib_files: Vec<&str>) -> Result<(), Error>
+pub fn runSchemeFile(filename: &str, lib_files: &[&str]) -> Result<(), Error>
 {
     let src = fs::read_to_string(filename)
         .map_err(|_| rterr!("Failed to load file {}", filename))?;
